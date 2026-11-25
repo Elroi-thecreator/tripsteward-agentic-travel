@@ -1,9 +1,10 @@
 {
   "name": "open-agentic-web",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Standard developer toolkit, conformance linter & in-browser runtime for the Open Agentic Web (Cognizant / Mozilla / MIT NANDA MVP Profile 0.3)",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "bin": {
     "open-agentic-web": "./bin/cli.mjs",
     "oaw": "./bin/cli.mjs"

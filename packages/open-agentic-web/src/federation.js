@@ -4,12 +4,15 @@
  * of peer agentic web nodes on the fly with 100% client-side privacy.
  */
 
+import { createActionBridgeClient } from "./bridge.js";
+
 export class AgentSwarm {
   constructor({ defaultRouter = "https://api.otari.ai/api/v1", defaultModel = "alibaba/qwen3.8-flash" } = {}) {
     this.defaultRouter = defaultRouter;
     this.defaultModel = defaultModel;
     this.nodes = new Map();
     this.listeners = new Set();
+    this._toolMap = new Map();
   }
 
   /**
@@ -61,7 +64,11 @@ export class AgentSwarm {
         node.name.toLowerCase().includes(q) ||
         node.description.toLowerCase().includes(q) ||
         node.category.toLowerCase().includes(q) ||
-        node.tools.some(t => t.toLowerCase().includes(q));
+        node.tools.some(t =>
+          (typeof t === "string" ? t : `${t?.name || ""} ${t?.description || ""}`)
+            .toLowerCase()
+            .includes(q)
+        );
 
       return matchCat && matchQuery;
     });
@@ -94,8 +101,9 @@ export class AgentSwarm {
   /**
    * Mount a remote conforming agentic web node from its public URL.
    * If onConsent hook is provided, requests user approval before registering.
+   * In browser contexts, optionally auto-wires an ActionBridgeClient and hydrates live catalog.
    */
-  async mountFromUrl(nodeUrl, { onConsent = null, fetchFn = globalThis.fetch } = {}) {
+  async mountFromUrl(nodeUrl, { onConsent = null, autoWireBridge = true, fetchFn = globalThis.fetch } = {}) {
     if (!fetchFn) {
       throw new Error("fetch is required to mount remote agentic web nodes.");
     }
@@ -150,6 +158,23 @@ export class AgentSwarm {
       }
     }
 
+    // Optional Auto-Wired Action Bridge Client in browser DOM contexts
+    let bridgeClient = null;
+    if (autoWireBridge && typeof globalThis.window !== "undefined" && typeof globalThis.document !== "undefined") {
+      try {
+        bridgeClient = createActionBridgeClient({
+          bridgeUrl: `${cleanUrl}/bridge/action-bridge.html`,
+          brand: manifest.brand || manifest.name || "Peer Bridge"
+        });
+        const liveCatalog = await bridgeClient.getCatalog().catch(() => null);
+        if (Array.isArray(liveCatalog) && liveCatalog.length > 0) {
+          hydratedTools = liveCatalog;
+        }
+      } catch {
+        // Fallback to static declarations
+      }
+    }
+
     const candidateNode = {
       id: manifest.name || network.name || `node_${Date.now()}`,
       name: manifest.brand || manifest.description || manifest.name || network.name,
@@ -157,7 +182,8 @@ export class AgentSwarm {
       node_url: cleanUrl,
       category: manifest.category || (network.tags && network.tags[0]) || "Specialist",
       description: manifest.description || network.description || "",
-      tools: hydratedTools
+      tools: hydratedTools,
+      _bridgeClient: bridgeClient
     };
 
     // User consent check
@@ -169,6 +195,9 @@ export class AgentSwarm {
       });
 
       if (!approved) {
+        if (bridgeClient && typeof bridgeClient.dispose === "function") {
+          bridgeClient.dispose();
+        }
         throw new Error(`Mounting of node '${candidateNode.name}' was declined by user consent.`);
       }
     }
@@ -177,16 +206,57 @@ export class AgentSwarm {
   }
 
   /**
-   * Export all registered tools across connected nodes as OpenAI-compatible function calling schemas.
+   * Resolve an exposed tool name back to its owning node and raw tool name.
    */
-  getOpenAITools(toolSubset = null) {
+  resolveTool(toolName) {
+    if (this._toolMap.has(toolName)) {
+      return this._toolMap.get(toolName);
+    }
+    if (toolName.includes("__")) {
+      const idx = toolName.indexOf("__");
+      const nodeId = toolName.slice(0, idx);
+      const rawName = toolName.slice(idx + 2);
+      const node = this.nodes.get(nodeId);
+      return { node, rawName, nodeId };
+    }
+    for (const node of this.nodes.values()) {
+      const hasTool = (node.tools || []).some(t => (typeof t === "string" ? t : t.name) === toolName);
+      if (hasTool) return { node, rawName: toolName, nodeId: node.id };
+    }
+    return { node: null, rawName: toolName, nodeId: null };
+  }
+
+  /**
+   * Export all registered tools across connected nodes as OpenAI-compatible function calling schemas.
+   * Automatically namespaces function names (${nodeId}__${toolName}) when collisions exist across nodes.
+   */
+  getOpenAITools(toolSubset = null, { namespace = "auto" } = {}) {
     const formatted = [];
     const allowed = toolSubset ? new Set(toolSubset) : null;
+    this._toolMap.clear();
+
+    // Count tool names across all nodes to detect cross-peer collisions
+    const toolCounts = new Map();
+    for (const node of this.nodes.values()) {
+      for (const tool of (node.tools || [])) {
+        const rawName = typeof tool === "string" ? tool : tool.name;
+        if (allowed && !allowed.has(rawName)) continue;
+        toolCounts.set(rawName, (toolCounts.get(rawName) || 0) + 1);
+      }
+    }
 
     for (const node of this.nodes.values()) {
       for (const tool of (node.tools || [])) {
-        const name = typeof tool === "string" ? tool : tool.name;
-        if (allowed && !allowed.has(name)) continue;
+        const rawName = typeof tool === "string" ? tool : tool.name;
+        if (allowed && !allowed.has(rawName)) continue;
+
+        const isCollision = (toolCounts.get(rawName) || 0) > 1;
+        const shouldNamespace = namespace === true || (namespace === "auto" && isCollision);
+        const safeNodeId = (node.id || "peer").replace(/[^a-zA-Z0-9_]/g, "_");
+        const exposedName = shouldNamespace ? `${safeNodeId}__${rawName}` : rawName;
+
+        this._toolMap.set(exposedName, { node, rawName, nodeId: node.id });
+        this._toolMap.set(rawName, { node, rawName, nodeId: node.id });
 
         const description = typeof tool === "object" && tool.description
           ? tool.description
@@ -199,7 +269,7 @@ export class AgentSwarm {
         formatted.push({
           type: "function",
           function: {
-            name,
+            name: exposedName,
             description,
             parameters
           }
@@ -212,6 +282,7 @@ export class AgentSwarm {
   /**
    * Execute an in-browser agent turn with BYOK LLM inference and autonomous tool execution.
    * Compatible with Mozilla Otari, OpenRouter, and standard OpenAI-compatible endpoints.
+   * Auto-routes to peer action bridges when actionExecutor is omitted, and supports SSE token streaming.
    */
   async runTurn({
     prompt,
@@ -223,6 +294,8 @@ export class AgentSwarm {
     actionExecutor = null,
     maxSteps = 5,
     onStep = null,
+    stream = false,
+    onToken = null,
     fetchFn = globalThis.fetch
   }) {
     if (!fetchFn) {
@@ -246,12 +319,21 @@ export class AgentSwarm {
         ? { id: "call_mock_1", function: { name: tools[0].function.name, arguments: "{}" } }
         : null;
 
-      if (mockToolCall && actionExecutor) {
-        const result = await actionExecutor(mockToolCall.function.name, {});
+      if (mockToolCall) {
+        let result;
+        const { node, rawName } = this.resolveTool(mockToolCall.function.name);
+        if (typeof actionExecutor === "function") {
+          result = await actionExecutor(rawName, {}, { nodeId: node?.id, namespacedName: mockToolCall.function.name, node });
+        } else if (node && node._bridgeClient && typeof node._bridgeClient.execute === "function") {
+          result = await node._bridgeClient.execute(rawName, {});
+        } else {
+          result = { ok: true, simulated: true, tool: rawName };
+        }
+
         conversation.push({ role: "assistant", tool_calls: [mockToolCall], content: null });
         conversation.push({ role: "tool", tool_call_id: mockToolCall.id, name: mockToolCall.function.name, content: JSON.stringify(result) });
-        conversation.push({ role: "assistant", content: `Mock synthesis completed for ${mockToolCall.function.name}.` });
-        return { ok: true, text: `Mock synthesis completed for ${mockToolCall.function.name}.`, messages: conversation, stepsCount: 2, toolCallsCount: 1 };
+        conversation.push({ role: "assistant", content: `Mock synthesis completed for ${rawName}.` });
+        return { ok: true, text: `Mock synthesis completed for ${rawName}.`, messages: conversation, stepsCount: 2, toolCallsCount: 1 };
       }
 
       const reply = `Mock offline response for: ${prompt}`;
@@ -269,7 +351,8 @@ export class AgentSwarm {
       const payload = {
         model,
         messages: conversation,
-        tools: tools.length > 0 ? tools : undefined
+        tools: tools.length > 0 ? tools : undefined,
+        stream: Boolean(stream && typeof onToken === "function")
       };
 
       const headers = {
@@ -290,12 +373,62 @@ export class AgentSwarm {
         throw new Error(`LLM inference failed at '${endpoint}' (HTTP ${res.status}): ${errText}`);
       }
 
-      const data = await res.json();
-      const choice = data.choices?.[0];
-      const message = choice?.message;
+      let message;
+      if (payload.stream && res.body && typeof res.body.getReader === "function") {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let fullContent = "";
+        const toolCallsMap = new Map();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(":") || trimmed === "data: [DONE]") continue;
+            if (trimmed.startsWith("data: ")) {
+              try {
+                const chunk = JSON.parse(trimmed.slice(6));
+                const delta = chunk.choices?.[0]?.delta;
+                if (delta?.content) {
+                  fullContent += delta.content;
+                  onToken(delta.content);
+                }
+                if (delta?.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index ?? 0;
+                    if (!toolCallsMap.has(idx)) {
+                      toolCallsMap.set(idx, { id: tc.id || `call_${idx}`, function: { name: tc.function?.name || "", arguments: "" } });
+                    }
+                    const existing = toolCallsMap.get(idx);
+                    if (tc.id) existing.id = tc.id;
+                    if (tc.function?.name) existing.function.name += tc.function.name;
+                    if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+                  }
+                }
+              } catch {}
+            }
+          }
+        }
+
+        const tool_calls = Array.from(toolCallsMap.values()).filter(t => t.function.name);
+        message = {
+          role: "assistant",
+          content: fullContent || null,
+          tool_calls: tool_calls.length > 0 ? tool_calls : undefined
+        };
+      } else {
+        const data = await res.json();
+        message = data.choices?.[0]?.message;
+      }
 
       if (!message) {
-        throw new Error("Invalid response format from LLM router: missing choices[0].message");
+        throw new Error("Invalid response format from LLM router: missing message in choices");
       }
 
       conversation.push(message);
@@ -313,19 +446,31 @@ export class AgentSwarm {
           }
 
           let result;
+          const { node, rawName } = this.resolveTool(toolName);
+
           if (typeof actionExecutor === "function") {
             try {
-              result = await actionExecutor(toolName, args);
+              result = await actionExecutor(rawName, args, {
+                nodeId: node?.id,
+                namespacedName: toolName,
+                node
+              });
+            } catch (err) {
+              result = { ok: false, error: err.message };
+            }
+          } else if (node && node._bridgeClient && typeof node._bridgeClient.execute === "function") {
+            try {
+              result = await node._bridgeClient.execute(rawName, args);
             } catch (err) {
               result = { ok: false, error: err.message };
             }
           } else {
-            result = { ok: true, message: `Tool '${toolName}' executed in swarm context.` };
+            result = { ok: true, message: `Tool '${rawName}' executed in swarm context.` };
           }
 
           if (typeof onStep === "function") {
             try {
-              onStep({ step, tool: toolName, arguments: args, result });
+              onStep({ step, tool: rawName, namespacedTool: toolName, arguments: args, result });
             } catch {}
           }
 
@@ -355,6 +500,18 @@ export class AgentSwarm {
       stepsCount: step,
       toolCallsCount
     };
+  }
+
+  /**
+   * Dispose all active bridge client iframes associated with mounted nodes.
+   */
+  dispose() {
+    for (const node of this.nodes.values()) {
+      if (node._bridgeClient && typeof node._bridgeClient.dispose === "function") {
+        try { node._bridgeClient.dispose(); } catch {}
+        node._bridgeClient = null;
+      }
+    }
   }
 
   /**

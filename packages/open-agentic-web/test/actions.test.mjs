@@ -137,4 +137,39 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
       ActionSecurityError
     );
   });
+
+  it("exports actions to OpenAI tools, MCP tools, and WebMCP adapter format", async () => {
+    const registry = createActionRegistry();
+    registry.register(
+      defineAction({
+        name: "website_check_rates",
+        description: "Check live daily room rates",
+        effect: "read",
+        inputSchema: {
+          type: "object",
+          properties: { room_type: { type: "string" } },
+          required: ["room_type"]
+        },
+        execute: async (args) => ({ rate: 199 })
+      })
+    );
+
+    // OpenAI format
+    const openaiTools = registry.toOpenAITools();
+    assert.strictEqual(openaiTools.length, 1);
+    assert.strictEqual(openaiTools[0].type, "function");
+    assert.strictEqual(openaiTools[0].function.name, "website_check_rates");
+    assert.deepStrictEqual(openaiTools[0].function.parameters.required, ["room_type"]);
+
+    // MCP format
+    const mcpTools = registry.toMCPTools();
+    assert.strictEqual(mcpTools.length, 1);
+    assert.strictEqual(mcpTools[0].name, "website_check_rates");
+    assert.strictEqual(mcpTools[0].description, "Check live daily room rates");
+    assert.deepStrictEqual(mcpTools[0].inputSchema.required, ["room_type"]);
+
+    // WebMCP gracefully returns false if navigator.modelContext is not present in Node
+    const webMcpRegistered = await registry.registerWebMCP();
+    assert.strictEqual(webMcpRegistered, false);
+  });
 });

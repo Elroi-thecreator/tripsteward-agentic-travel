@@ -14,6 +14,7 @@ export const ACTION_BRIDGE_PROTOCOL = "nsdeploy-actions-v1";
 export function setupActionBridge({
   registry,
   allowedOrigins = ["*"],
+  manifestUrl = null,
   onConfirm = null,
   protocol = ACTION_BRIDGE_PROTOCOL,
   windowObj = globalThis.window
@@ -23,9 +24,25 @@ export function setupActionBridge({
   }
 
   // Cross-origin federation allows orchestrators to connect; irreversible actions strictly enforce onConfirm
-  const effectiveAllowedOrigins = Array.isArray(allowedOrigins) && allowedOrigins.length > 0
-    ? allowedOrigins
+  let effectiveAllowedOrigins = Array.isArray(allowedOrigins) && allowedOrigins.length > 0
+    ? [...allowedOrigins]
     : ["*"];
+
+  // Runtime enforcement of agent-manifest.json peer_policy if provided
+  if (manifestUrl && typeof windowObj.fetch === "function") {
+    windowObj.fetch(manifestUrl)
+      .then(res => res.json())
+      .then(manifest => {
+        const policy = manifest.peer_policy;
+        if (policy && policy.mode === "closed" && Array.isArray(policy.allowed_peers)) {
+          effectiveAllowedOrigins = [...policy.allowed_peers];
+          console.info(`[ActionBridge] Restricting allowedOrigins to peer_policy.allowed_peers:`, effectiveAllowedOrigins);
+        }
+      })
+      .catch(err => {
+        console.warn(`[ActionBridge] Unable to load manifest policy from '${manifestUrl}':`, err);
+      });
+  }
 
   if (effectiveAllowedOrigins.includes("*")) {
     console.warn(
@@ -93,7 +110,17 @@ export function setupActionBridge({
         isConnected = true;
 
         port.onmessage = async ({ data: portData }) => {
-          if (!portData || portData.type !== "call") return;
+          if (!portData) return;
+
+          // Catalog discovery RPC
+          if (portData.type === "catalog") {
+            const { id } = portData;
+            const tools = registry.catalog();
+            port.postMessage({ id, ok: true, tools, protocol });
+            return;
+          }
+
+          if (portData.type !== "call") return;
 
           const { id, action, arguments: args } = portData;
           try {
@@ -114,6 +141,13 @@ export function setupActionBridge({
         port.postMessage({ type: "connected", protocol, ok: true });
         return;
       }
+    }
+
+    // Direct fallback catalog discovery if no MessageChannel
+    if (data.type === "catalog" && data.id) {
+      const tools = registry.catalog();
+      source?.postMessage({ id: data.id, ok: true, tools, protocol }, origin);
+      return;
     }
 
     // Direct fallback communication if no MessageChannel
@@ -210,7 +244,7 @@ export function createActionBridgeClient({
             if (data?.id && pendingRequests.has(data.id)) {
               const { res, rej } = pendingRequests.get(data.id);
               pendingRequests.delete(data.id);
-              if (data.ok) res(data.result);
+              if (data.ok) res(data.tools !== undefined ? data.tools : data.result);
               else rej(new Error(data.error || "Action execution failed."));
             }
           };
@@ -258,6 +292,32 @@ export function createActionBridgeClient({
           id,
           action: actionName,
           arguments: args,
+          protocol: ACTION_BRIDGE_PROTOCOL
+        });
+      });
+    },
+
+    /**
+     * Fetch runtime action catalog with full inputSchema parameter definitions from remote bridge.
+     */
+    async getCatalog() {
+      await connect();
+      const id = `cat_${++seq}_${Date.now()}`;
+
+      return new Promise((res, rej) => {
+        const timer = setTimeout(() => {
+          pendingRequests.delete(id);
+          rej(new Error(`Timeout fetching catalog from '${brand}' (${timeoutMs}ms)`));
+        }, timeoutMs);
+
+        pendingRequests.set(id, {
+          res: (tools) => { clearTimeout(timer); res(tools); },
+          rej: (err) => { clearTimeout(timer); rej(err); }
+        });
+
+        port.postMessage({
+          type: "catalog",
+          id,
           protocol: ACTION_BRIDGE_PROTOCOL
         });
       });

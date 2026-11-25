@@ -118,4 +118,77 @@ describe("Open Agentic Web - Dynamic Swarm & Federation", () => {
     assert.strictEqual(turnResult.toolCallsCount, 1);
     assert.ok(turnResult.text.includes("website_quote_ride"));
   });
+
+  it("searches hydrated tool objects without crashing and finds tools by description", () => {
+    const swarm = new AgentSwarm();
+    swarm.registerNode({
+      id: "node_hydrated",
+      name: "Hydrated Node",
+      category: "Services",
+      tools: [
+        {
+          name: "website_check_availability",
+          description: "Inspect live catamaran sunset cruises"
+        }
+      ]
+    });
+
+    // Search by tool description query keyword
+    const results = swarm.search({ query: "catamaran" });
+    assert.strictEqual(results.length, 1);
+    assert.strictEqual(results[0].id, "node_hydrated");
+
+    // Search by tool name
+    const resultsByName = swarm.search({ query: "availability" });
+    assert.strictEqual(resultsByName.length, 1);
+  });
+
+  it("auto-namespaces tools on cross-peer collision and strips prefix before execution", async () => {
+    const swarm = new AgentSwarm({
+      defaultRouter: "mock",
+      defaultModel: "alibaba/qwen3.8-flash"
+    });
+
+    swarm.registerNode({
+      id: "node_a",
+      name: "Provider A",
+      category: "Inventory",
+      tools: [{ name: "website_query_inventory", description: "Query Provider A stock" }]
+    });
+
+    swarm.registerNode({
+      id: "node_b",
+      name: "Provider B",
+      category: "Inventory",
+      tools: [{ name: "website_query_inventory", description: "Query Provider B stock" }]
+    });
+
+    const tools = swarm.getOpenAITools();
+    assert.strictEqual(tools.length, 2);
+    // Both function names should be namespaced to prevent 400 Duplicate function name error
+    const names = tools.map(t => t.function.name);
+    assert.ok(names.includes("node_a__website_query_inventory"));
+    assert.ok(names.includes("node_b__website_query_inventory"));
+
+    // Tool resolution strips the prefix
+    const resolved = swarm.resolveTool("node_a__website_query_inventory");
+    assert.strictEqual(resolved.rawName, "website_query_inventory");
+    assert.strictEqual(resolved.nodeId, "node_a");
+
+    // In runTurn mock mode, actionExecutor receives the stripped raw tool name
+    let receivedToolName = null;
+    let receivedMeta = null;
+    await swarm.runTurn({
+      prompt: "book inventory now",
+      apiKey: "mock",
+      actionExecutor: async (tool, args, meta) => {
+        receivedToolName = tool;
+        receivedMeta = meta;
+        return { ok: true };
+      }
+    });
+
+    assert.strictEqual(receivedToolName, "website_query_inventory");
+    assert.ok(receivedMeta?.nodeId === "node_a" || receivedMeta?.nodeId === "node_b");
+  });
 });

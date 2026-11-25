@@ -6,8 +6,18 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import { validateFederation, validateNode } from "../src/validator.js";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { validateFederation, validateManifest, validateNetwork, validateNode } from "../src/validator.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+let VERSION = "1.0.3";
+try {
+  const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
+  if (pkg.version) VERSION = pkg.version;
+} catch {}
 
 const args = process.argv.slice(2);
 const command = args[0] || "help";
@@ -47,6 +57,89 @@ ${colors.bold}EXAMPLES:${colors.reset}
 `);
 }
 
+async function validateRemoteUrl(urlStr) {
+  const cleanUrl = urlStr.replace(/\/$/, "");
+  const results = [];
+  let failed = 0;
+
+  try {
+    const manifestUrl = `${cleanUrl}/agent-manifest.json`;
+    const manifestRes = await fetch(manifestUrl);
+
+    // Check CORS
+    const corsHeader = manifestRes.headers.get("access-control-allow-origin");
+    if (corsHeader === "*" || corsHeader) {
+      results.push({ status: "PASS", message: `CORS header present on manifest: 'Access-Control-Allow-Origin: ${corsHeader}'` });
+    } else {
+      results.push({ status: "WARN", message: `Missing 'Access-Control-Allow-Origin' header on ${manifestUrl}. Remote browser swarms may be blocked by CORS.` });
+    }
+
+    if (!manifestRes.ok) {
+      results.push({ status: "FAIL", message: `Failed to fetch agent-manifest.json from '${manifestUrl}' (HTTP ${manifestRes.status})` });
+      failed++;
+      return { target: cleanUrl, valid: false, failed, results };
+    }
+
+    results.push({ status: "PASS", message: `Successfully fetched 'agent-manifest.json'` });
+    const manifest = await manifestRes.json();
+    const manifestCheck = validateManifest(manifest);
+    results.push(...manifestCheck.results);
+    if (!manifestCheck.valid) failed += manifestCheck.failed;
+
+    // Check bridge
+    const bridgeUrl = `${cleanUrl}/bridge/action-bridge.html`;
+    try {
+      const bridgeRes = await fetch(bridgeUrl);
+      if (bridgeRes.ok) {
+        results.push({ status: "PASS", message: `Live action bridge available at '${bridgeUrl}'` });
+        const xfo = bridgeRes.headers.get("x-frame-options");
+        if (xfo && (xfo.toUpperCase() === "DENY" || xfo.toUpperCase() === "SAMEORIGIN")) {
+          results.push({ status: "FAIL", message: `Action bridge has 'X-Frame-Options: ${xfo}' which prevents cross-origin embedding by orchestrators!` });
+          failed++;
+        } else {
+          results.push({ status: "PASS", message: `X-Frame-Options allows cross-origin embedding` });
+        }
+      } else {
+        results.push({ status: "WARN", message: `Action bridge at '${bridgeUrl}' returned HTTP ${bridgeRes.status}` });
+      }
+    } catch (e) {
+      results.push({ status: "WARN", message: `Could not verify action bridge at '${bridgeUrl}': ${e.message}` });
+    }
+
+    // Check declarative network if declared
+    const netPath = manifest.networks?.[0]?.hocon;
+    if (netPath && typeof netPath === "string") {
+      const networkUrl = `${cleanUrl}/${netPath.replace(/^\.\//, "")}`;
+      try {
+        const netRes = await fetch(networkUrl);
+        if (netRes.ok) {
+          results.push({ status: "PASS", message: `Fetched declarative network from '${networkUrl}'` });
+          const netJson = await netRes.json();
+          const netCheck = validateNetwork(netJson);
+          results.push(...netCheck.results);
+          if (!netCheck.valid) failed += netCheck.failed;
+        } else {
+          results.push({ status: "FAIL", message: `Referenced network file at '${networkUrl}' returned HTTP ${netRes.status}` });
+          failed++;
+        }
+      } catch (e) {
+        results.push({ status: "FAIL", message: `Failed to fetch network graph from '${networkUrl}': ${e.message}` });
+        failed++;
+      }
+    }
+  } catch (err) {
+    results.push({ status: "FAIL", message: `Network error connecting to '${cleanUrl}': ${err.message}` });
+    failed++;
+  }
+
+  return {
+    target: cleanUrl,
+    valid: failed === 0,
+    failed,
+    results
+  };
+}
+
 async function runValidate() {
   const targetDirs = args.slice(1).length > 0 ? args.slice(1) : ["."];
   let overallFailed = 0;
@@ -54,8 +147,9 @@ async function runValidate() {
   console.log(`\n${colors.bold}✈️  Running Open Agentic Web Conformance Linter${colors.reset}\n`);
 
   for (const dir of targetDirs) {
-    const summary = await validateNode(dir);
-    console.log(`${colors.bold}Testing Node:${colors.reset} ${colors.cyan}${summary.target}${colors.reset}`);
+    const isRemote = dir.startsWith("http://") || dir.startsWith("https://");
+    const summary = isRemote ? await validateRemoteUrl(dir) : await validateNode(dir);
+    console.log(`${colors.bold}Testing ${isRemote ? "Live Node" : "Node"}:${colors.reset} ${colors.cyan}${summary.target}${colors.reset}`);
 
     summary.results.forEach(res => {
       if (res.status === "PASS") {
@@ -238,8 +332,8 @@ export class SiteActions {
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.2",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.2/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@${VERSION}",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@${VERSION}/"
       }
     }
     </script>
@@ -277,8 +371,8 @@ export class SiteActions {
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.2",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.2/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@${VERSION}",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@${VERSION}/"
       }
     }
     </script>
@@ -354,7 +448,7 @@ switch (command) {
   case "version":
   case "-v":
   case "--version":
-    console.log("open-agentic-web v1.0.2");
+    console.log(`open-agentic-web v${VERSION}`);
     break;
   case "help":
   case "--help":

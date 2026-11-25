@@ -258,6 +258,49 @@ export function createActionRegistry() {
     },
 
     /**
+     * Export tools in OpenAI / Vercel AI SDK function calling format
+     */
+    toOpenAITools() {
+      return this.list().map(a => ({
+        type: "function",
+        function: {
+          name: a.name,
+          description: a.description,
+          parameters: a.inputSchema
+        }
+      }));
+    },
+
+    /**
+     * Export tools in Model Context Protocol (MCP) format
+     */
+    toMCPTools() {
+      return this.list().map(a => ({
+        name: a.name,
+        description: a.description,
+        inputSchema: a.inputSchema
+      }));
+    },
+
+    /**
+     * Register tools into browser native WebMCP (navigator.modelContext) if available
+     */
+    async registerWebMCP() {
+      if (typeof navigator !== "undefined" && navigator.modelContext && typeof navigator.modelContext.registerTool === "function") {
+        for (const act of this.list()) {
+          await navigator.modelContext.registerTool({
+            name: act.name,
+            description: act.description,
+            parameters: act.inputSchema,
+            execute: async (args) => this.execute(act.name, args)
+          });
+        }
+        return true;
+      }
+      return false;
+    },
+
+    /**
      * Execute an action by name with input arguments
      */
     async execute(name, args = {}, context = {}) {
