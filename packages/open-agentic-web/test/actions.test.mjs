@@ -172,4 +172,119 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
     const webMcpRegistered = await registry.registerWebMCP();
     assert.strictEqual(webMcpRegistered, false);
   });
+
+  it("validates pattern, format, defaults, oneOf, and anyOf in validateSchema", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        email: { type: "string", format: "email" },
+        website: { type: "string", format: "uri" },
+        code: { type: "string", pattern: "^[A-Z]{3}-\\d{3}$" },
+        role: { type: "string", default: "guest" },
+        choice: {
+          oneOf: [
+            { type: "string", enum: ["standard", "deluxe"] },
+            { type: "integer", minimum: 1, maximum: 5 }
+          ]
+        }
+      },
+      required: ["email", "code"]
+    };
+
+    // Valid data with default injection
+    const target = { email: "user@example.com", code: "SFO-101", choice: "deluxe" };
+    const res = validateSchema(schema, target);
+    assert.strictEqual(res.valid, true);
+    assert.strictEqual(target.role, "guest", "default value should be injected");
+
+    // Invalid format & pattern
+    const invalidRes = validateSchema(schema, {
+      email: "not-an-email",
+      code: "invalid-code",
+      website: "ftp://wrong",
+      choice: true
+    });
+    assert.strictEqual(invalidRes.valid, false);
+    assert.ok(invalidRes.errors.some(e => e.includes("does not match format 'email'")));
+    assert.ok(invalidRes.errors.some(e => e.includes("does not match pattern")));
+    assert.ok(invalidRes.errors.some(e => e.includes("does not match any allowed oneOf schema")));
+  });
+
+  it("supports undoable actions and maintains audit logs in createActionRegistry", async () => {
+    let unDoneCount = 0;
+    const executedLogs = [];
+
+    const registry = createActionRegistry({
+      onActionExecuted: (record) => executedLogs.push(record)
+    });
+
+    registry.register(
+      defineAction({
+        name: "website_hold_reservation",
+        description: "Hold hotel room reservation",
+        effect: "undoable",
+        inputSchema: {
+          type: "object",
+          properties: { reservationId: { type: "string" } },
+          required: ["reservationId"]
+        },
+        execute: async (args) => ({ status: "HELD", id: args.reservationId }),
+        undo: async (args, execResult) => {
+          unDoneCount++;
+          return { status: "RELEASED", id: args.reservationId };
+        }
+      })
+    );
+
+    const execResult = await registry.execute("website_hold_reservation", { reservationId: "RES-999" });
+    assert.strictEqual(execResult.status, "HELD");
+
+    // Check audit log
+    const audit = registry.getAuditLog();
+    assert.strictEqual(audit.length, 1);
+    assert.strictEqual(audit[0].actionName, "website_hold_reservation");
+    assert.strictEqual(audit[0].effect, "undoable");
+    assert.strictEqual(executedLogs.length, 1);
+
+    // Perform undo
+    const undoRes = await registry.undo("website_hold_reservation", { reservationId: "RES-999" }, execResult);
+    assert.strictEqual(unDoneCount, 1);
+    assert.strictEqual(undoRes.status, "RELEASED");
+  });
+
+  it("converts manifest and actions to A2A Agent Card using toA2AAgentCard", () => {
+    const registry = createActionRegistry();
+    registry.register(
+      defineAction({
+        name: "website_search_rooms",
+        description: "Search hotel rooms",
+        effect: "read",
+        inputSchema: { type: "object", properties: { city: { type: "string" } } },
+        execute: async () => ({})
+      })
+    );
+
+    const manifest = {
+      name: "tripsteward_hub",
+      description: "Autonomous Travel Concierge",
+      category: "Hospitality",
+      version: "1.0.0",
+      actions: {
+        agentTools: ["website_search_rooms"]
+      }
+    };
+
+    const card = registry.toA2AAgentCard(manifest, {
+      url: "https://tripsteward.example.com",
+      provider: "TripSteward Corp"
+    });
+
+    assert.strictEqual(card.name, "tripsteward_hub");
+    assert.strictEqual(card.url, "https://tripsteward.example.com");
+    assert.strictEqual(card.provider.name, "TripSteward Corp");
+    assert.ok(card.skills.length >= 1);
+    assert.strictEqual(card.skills[0].id, "website_search_rooms");
+    assert.strictEqual(card.capabilities.actions, true);
+    assert.strictEqual(card.capabilities.pushNotifications, false);
+  });
 });

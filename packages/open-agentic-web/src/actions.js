@@ -22,13 +22,28 @@ export class ActionSecurityError extends Error {
 
 /**
  * Validates a JavaScript value against a JSON Schema subset.
- * Supports: type, properties, required, additionalProperties, enum, items, min/max, minLength/maxLength.
+ * Supports: type, properties, required, default, additionalProperties, enum, pattern, format, items, min/max, minLength/maxLength, oneOf, anyOf.
  */
 export function validateSchema(schema, data, path = "") {
   const errors = [];
   if (!schema || typeof schema !== "object") return { valid: true, errors: [] };
 
   const fieldDesc = path ? `at '${path}'` : "input";
+
+  // oneOf / anyOf composition checks
+  if (Array.isArray(schema.anyOf)) {
+    const passed = schema.anyOf.some(sub => validateSchema(sub, data, path).valid);
+    if (!passed) {
+      errors.push(`Value ${fieldDesc} does not match any of the allowed schemas in anyOf`);
+    }
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    const passCount = schema.oneOf.filter(sub => validateSchema(sub, data, path).valid).length;
+    if (passCount !== 1) {
+      errors.push(`Value ${fieldDesc} does not match any allowed oneOf schema (matched ${passCount}, exactly 1 required)`);
+    }
+  }
 
   // Type check
   if (schema.type) {
@@ -59,8 +74,19 @@ export function validateSchema(schema, data, path = "") {
     }
   }
 
-  // Object checks
+  // Object checks & default value injection
   if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+    // Default value injection for missing properties
+    if (schema.properties && typeof schema.properties === "object") {
+      for (const [propKey, propSchema] of Object.entries(schema.properties)) {
+        if (data[propKey] === undefined && propSchema.default !== undefined) {
+          data[propKey] = typeof propSchema.default === "object"
+            ? JSON.parse(JSON.stringify(propSchema.default))
+            : propSchema.default;
+        }
+      }
+    }
+
     // Required properties
     if (Array.isArray(schema.required)) {
       for (const reqKey of schema.required) {
@@ -101,13 +127,33 @@ export function validateSchema(schema, data, path = "") {
     });
   }
 
-  // String bounds
+  // String bounds, pattern, and format
   if (typeof data === "string") {
     if (schema.minLength !== undefined && data.length < schema.minLength) {
       errors.push(`String ${fieldDesc} length (${data.length}) is less than minLength ${schema.minLength}`);
     }
     if (schema.maxLength !== undefined && data.length > schema.maxLength) {
       errors.push(`String ${fieldDesc} length (${data.length}) exceeds maxLength ${schema.maxLength}`);
+    }
+    if (schema.pattern) {
+      try {
+        const regex = new RegExp(schema.pattern);
+        if (!regex.test(data)) {
+          errors.push(`String ${fieldDesc} does not match pattern '${schema.pattern}'`);
+        }
+      } catch {}
+    }
+    if (schema.format) {
+      const format = schema.format.toLowerCase();
+      if (format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data)) {
+        errors.push(`String ${fieldDesc} does not match format 'email' (invalid email address)`);
+      } else if ((format === "uri" || format === "url") && !/^https?:\/\/[^\s]+$/.test(data)) {
+        errors.push(`String ${fieldDesc} does not match format 'uri' (invalid URI/URL)`);
+      } else if (format === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+        errors.push(`String ${fieldDesc} does not match format 'date' (must be YYYY-MM-DD)`);
+      } else if (format === "uuid" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
+        errors.push(`String ${fieldDesc} does not match format 'uuid' (invalid UUID)`);
+      }
     }
   }
 
@@ -135,7 +181,7 @@ export function defineAction(definition) {
     throw new Error("Action definition must be a valid configuration object.");
   }
 
-  const { name, description, effect = "read", inputSchema = {}, execute, confirmsInWindow = false } = definition;
+  const { name, description, effect = "read", inputSchema = {}, execute, undo = null, confirmsInWindow = false } = definition;
 
   if (typeof name !== "string" || !name.trim()) {
     throw new Error("Action must declare a non-empty string 'name'.");
@@ -154,6 +200,10 @@ export function defineAction(definition) {
     throw new Error(`Action '${name}' must provide an executable async function 'execute(args, context)'.`);
   }
 
+  if (effect === "undoable" && undo && typeof undo !== "function") {
+    throw new Error(`Action '${name}' declared an invalid 'undo' handler. Must be an async function.`);
+  }
+
   const normalizedInputSchema = {
     type: "object",
     properties: inputSchema.properties || {},
@@ -169,6 +219,7 @@ export function defineAction(definition) {
     inputSchema: normalizedInputSchema,
     confirmsInWindow,
     rawExecute: execute,
+    undo: undo || null,
     execute: async (args = {}, context = {}) => {
       const validation = validateSchema(normalizedInputSchema, args);
       if (!validation.valid) {
@@ -209,10 +260,11 @@ export function defineAction(definition) {
 }
 
 /**
- * Create a registry of site actions.
+ * Create a registry of site actions with audit logging and undo support.
  */
-export function createActionRegistry() {
+export function createActionRegistry({ onActionExecuted = null, onActionError = null } = {}) {
   const actionsMap = new Map();
+  const auditLog = [];
 
   return {
     /**
@@ -301,14 +353,213 @@ export function createActionRegistry() {
     },
 
     /**
-     * Execute an action by name with input arguments
+     * Retrieve chronological audit log of all executed actions
+     */
+    getAuditLog() {
+      return [...auditLog];
+    },
+
+    /**
+     * Execute an action by name with input arguments and records audit trail
      */
     async execute(name, args = {}, context = {}) {
       const action = actionsMap.get(name);
       if (!action) {
         throw new Error(`Action '${name}' is not registered in this action registry.`);
       }
-      return action.execute(args, context);
+
+      const timestamp = new Date().toISOString();
+      try {
+        const result = await action.execute(args, context);
+        const record = { timestamp, action: name, actionName: name, effect: action.effect, arguments: args, result, ok: true };
+        auditLog.push(record);
+        if (typeof onActionExecuted === "function") {
+          try { onActionExecuted(record); } catch {}
+        }
+        return result;
+      } catch (err) {
+        const record = { timestamp, action: name, actionName: name, effect: action.effect, arguments: args, error: err.message, ok: false };
+        auditLog.push(record);
+        if (typeof onActionError === "function") {
+          try { onActionError(record, err); } catch {}
+        }
+        throw err;
+      }
+    },
+
+    /**
+     * Undo a previously executed action (for actions with effect: 'undoable')
+     */
+    async undo(name, args = {}, context = {}) {
+      const action = actionsMap.get(name);
+      if (!action) {
+        throw new Error(`Action '${name}' is not registered in this action registry.`);
+      }
+      if (action.effect !== "undoable" || typeof action.undo !== "function") {
+        throw new Error(`Action '${name}' does not implement an undo handler.`);
+      }
+
+      const timestamp = new Date().toISOString();
+      const undoResult = await action.undo(args, context);
+      auditLog.push({ timestamp, action: name, actionName: name, effect: "undo", arguments: args, result: undoResult, ok: true });
+      return undoResult;
+    },
+
+    /**
+     * Converts manifest and registered actions into an A2A Agent Card
+     */
+    toA2AAgentCard(manifest, options = {}) {
+      return toA2AAgentCard(manifest, { ...options, registry: this, baseUrl: options.baseUrl || options.url });
     }
   };
+}
+
+/**
+ * Converts a conforming agent-manifest.json into a standard Linux Foundation / Google
+ * Agent-to-Agent (A2A) Agent Card (/.well-known/agent.json).
+ */
+export function toA2AAgentCard(manifest, { baseUrl = "http://localhost", url = null, provider = null, registry = null } = {}) {
+  if (!manifest || typeof manifest !== "object") {
+    throw new Error("Invalid manifest object provided to toA2AAgentCard.");
+  }
+
+  const effectiveUrl = url || baseUrl || "http://localhost";
+  const cleanBaseUrl = String(effectiveUrl).replace(/\/$/, "");
+  const primaryNetwork = manifest.networks?.[0];
+
+  const providerObj = typeof provider === "string"
+    ? { name: provider, url: cleanBaseUrl }
+    : (provider && typeof provider === "object")
+      ? provider
+      : { name: manifest.brand || manifest.name || "Open Agentic Web", url: cleanBaseUrl };
+
+  // Resolve skills from registry catalog if available, or manifest action tools
+  const catalogTools = registry && typeof registry.catalog === "function" ? registry.catalog() : null;
+  const toolNames = manifest.actions?.agentTools || (catalogTools ? catalogTools.map(t => t.name) : []);
+
+  const skills = toolNames.map(toolName => {
+    const catalogItem = catalogTools ? catalogTools.find(c => c.name === toolName) : null;
+    return {
+      id: toolName,
+      name: toolName,
+      description: catalogItem?.description || `Execute ${toolName} on ${manifest.brand || manifest.name}`,
+      inputSchema: catalogItem?.inputSchema || { type: "object", properties: {} },
+      effect: catalogItem?.effect || "read"
+    };
+  });
+
+  return {
+    $schema: "https://agent2agent.org/schemas/agent-card-v1.json",
+    name: manifest.brand || manifest.name || "Agentic Web Node",
+    description: manifest.description || "",
+    url: cleanBaseUrl,
+    version: manifest.specification ? manifest.specification.replace(/^.*MVP\s*/i, "0.3.0") : "0.3.0",
+    provider: providerObj,
+    identity: {
+      brand: manifest.brand || manifest.name,
+      frontMan: primaryNetwork?.front_man || "agent",
+      category: manifest.category || (primaryNetwork?.tags && primaryNetwork.tags[0]) || "Concierge"
+    },
+    skills,
+    capabilities: {
+      actions: true,
+      pushNotifications: false,
+      tools: toolNames,
+      networks: (manifest.networks || []).map(n => n.name),
+      actionBridgeUrl: `${cleanBaseUrl}/bridge/action-bridge.html`
+    },
+    protocols: [
+      {
+        name: "nsdeploy-actions-v1",
+        version: "1.0.0",
+        endpoint: `${cleanBaseUrl}/bridge/action-bridge.html`
+      }
+    ],
+    authentication: {
+      type: "byok",
+      description: "Bring Your Own Key client-side inference"
+    }
+  };
+}
+
+/**
+ * Drop-in accessible HTML consent and confirmation modal for browser environments.
+ * Replaces window.confirm() with a clean modal dialog.
+ */
+export function createConsentDialog({
+  title = "Authorize Action",
+  message = "An autonomous agent is requesting permission to execute an action.",
+  details = null,
+  confirmText = "Authorize",
+  cancelText = "Decline",
+  documentObj = globalThis.document
+} = {}) {
+  if (!documentObj) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const dialog = documentObj.createElement("dialog");
+    dialog.style.cssText = `
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      max-width: 480px;
+      width: 90%;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #1e293b;
+    `;
+
+    const titleEl = documentObj.createElement("h3");
+    titleEl.textContent = title;
+    titleEl.style.margin = "0 0 12px 0";
+
+    const msgEl = documentObj.createElement("p");
+    msgEl.textContent = message;
+    msgEl.style.margin = "0 0 16px 0";
+    msgEl.style.fontSize = "14px";
+    msgEl.style.color = "#475569";
+
+    dialog.appendChild(titleEl);
+    dialog.appendChild(msgEl);
+
+    if (details) {
+      const preEl = documentObj.createElement("pre");
+      preEl.textContent = typeof details === "string" ? details : JSON.stringify(details, null, 2);
+      preEl.style.cssText = "background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 12px; max-height: 140px; overflow: auto; margin-bottom: 16px;";
+      dialog.appendChild(preEl);
+    }
+
+    const btnContainer = documentObj.createElement("div");
+    btnContainer.style.cssText = "display: flex; justify-content: flex-end; gap: 10px;";
+
+    const cancelBtn = documentObj.createElement("button");
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.cssText = "padding: 8px 16px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; cursor: pointer;";
+
+    const confirmBtn = documentObj.createElement("button");
+    confirmBtn.textContent = confirmText;
+    confirmBtn.style.cssText = "padding: 8px 16px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: 500; cursor: pointer;";
+
+    const cleanup = (result) => {
+      try { dialog.close(); } catch {}
+      if (dialog.parentNode) dialog.parentNode.removeChild(dialog);
+      resolve(result);
+    };
+
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    confirmBtn.addEventListener("click", () => cleanup(true));
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(confirmBtn);
+    dialog.appendChild(btnContainer);
+
+    documentObj.body.appendChild(dialog);
+    try {
+      dialog.showModal();
+    } catch {
+      cleanup(true);
+    }
+  });
 }

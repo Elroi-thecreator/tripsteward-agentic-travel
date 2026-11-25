@@ -13,7 +13,7 @@ export const ACTION_BRIDGE_PROTOCOL = "nsdeploy-actions-v1";
  */
 export function setupActionBridge({
   registry,
-  allowedOrigins = ["*"],
+  allowedOrigins = undefined,
   manifestUrl = null,
   onConfirm = null,
   protocol = ACTION_BRIDGE_PROTOCOL,
@@ -23,10 +23,16 @@ export function setupActionBridge({
     throw new Error("Action bridge requires a browser window environment.");
   }
 
-  // Cross-origin federation allows orchestrators to connect; irreversible actions strictly enforce onConfirm
-  let effectiveAllowedOrigins = Array.isArray(allowedOrigins) && allowedOrigins.length > 0
-    ? [...allowedOrigins]
-    : ["*"];
+  // Fail-closed security:
+  // If allowedOrigins is explicitly given, use it.
+  // If manifestUrl is given, start empty and queue incoming events until policy is loaded.
+  // If neither is given, fail-closed to [] (rejecting all cross-origin requests).
+  let effectiveAllowedOrigins = allowedOrigins !== undefined
+    ? (Array.isArray(allowedOrigins) ? [...allowedOrigins] : [allowedOrigins])
+    : (manifestUrl ? [] : []);
+
+  let policyReady = !manifestUrl;
+  const queuedEvents = [];
 
   // Runtime enforcement of agent-manifest.json peer_policy if provided
   if (manifestUrl && typeof windowObj.fetch === "function") {
@@ -34,13 +40,23 @@ export function setupActionBridge({
       .then(res => res.json())
       .then(manifest => {
         const policy = manifest.peer_policy;
-        if (policy && policy.mode === "closed" && Array.isArray(policy.allowed_peers)) {
+        if (policy?.mode === "open") {
+          effectiveAllowedOrigins = ["*"];
+        } else if (policy?.mode === "closed" && Array.isArray(policy.allowed_peers)) {
           effectiveAllowedOrigins = [...policy.allowed_peers];
-          console.info(`[ActionBridge] Restricting allowedOrigins to peer_policy.allowed_peers:`, effectiveAllowedOrigins);
+        } else if (allowedOrigins === undefined) {
+          effectiveAllowedOrigins = [];
         }
       })
       .catch(err => {
         console.warn(`[ActionBridge] Unable to load manifest policy from '${manifestUrl}':`, err);
+      })
+      .finally(() => {
+        policyReady = true;
+        while (queuedEvents.length > 0) {
+          const ev = queuedEvents.shift();
+          processEvent(ev);
+        }
       });
   }
 
@@ -91,7 +107,7 @@ export function setupActionBridge({
     return registry.execute(action, args, { origin, confirmed: true });
   };
 
-  const handleMessage = async (event) => {
+  const processEvent = async (event) => {
     const { data, origin, source, ports } = event;
 
     if (!data || typeof data !== "object" || data.protocol !== protocol) {
@@ -167,6 +183,14 @@ export function setupActionBridge({
         }, origin);
       }
     }
+  };
+
+  const handleMessage = async (event) => {
+    if (!policyReady) {
+      queuedEvents.push(event);
+      return;
+    }
+    await processEvent(event);
   };
 
   windowObj.addEventListener("message", handleMessage);
@@ -272,7 +296,10 @@ export function createActionBridgeClient({
   }
 
   return {
-    async execute(actionName, args = {}) {
+    async execute(actionName, args = {}, { signal = null } = {}) {
+      if (signal?.aborted) {
+        throw new DOMException("The action execution was aborted.", "AbortError");
+      }
       await connect();
       const id = `req_${++seq}_${Date.now()}`;
 
@@ -282,9 +309,27 @@ export function createActionBridgeClient({
           rej(new Error(`Timeout calling action '${actionName}' on '${brand}' (${timeoutMs}ms)`));
         }, timeoutMs);
 
+        let abortHandler = null;
+        if (signal) {
+          abortHandler = () => {
+            clearTimeout(timer);
+            pendingRequests.delete(id);
+            rej(new DOMException("The action execution was aborted.", "AbortError"));
+          };
+          signal.addEventListener("abort", abortHandler, { once: true });
+        }
+
         pendingRequests.set(id, {
-          res: (result) => { clearTimeout(timer); res(result); },
-          rej: (err) => { clearTimeout(timer); rej(err); }
+          res: (result) => {
+            clearTimeout(timer);
+            if (abortHandler && signal) signal.removeEventListener("abort", abortHandler);
+            res(result);
+          },
+          rej: (err) => {
+            clearTimeout(timer);
+            if (abortHandler && signal) signal.removeEventListener("abort", abortHandler);
+            rej(err);
+          }
         });
 
         port.postMessage({
@@ -300,7 +345,10 @@ export function createActionBridgeClient({
     /**
      * Fetch runtime action catalog with full inputSchema parameter definitions from remote bridge.
      */
-    async getCatalog() {
+    async getCatalog({ signal = null } = {}) {
+      if (signal?.aborted) {
+        throw new DOMException("The catalog request was aborted.", "AbortError");
+      }
       await connect();
       const id = `cat_${++seq}_${Date.now()}`;
 
@@ -310,9 +358,27 @@ export function createActionBridgeClient({
           rej(new Error(`Timeout fetching catalog from '${brand}' (${timeoutMs}ms)`));
         }, timeoutMs);
 
+        let abortHandler = null;
+        if (signal) {
+          abortHandler = () => {
+            clearTimeout(timer);
+            pendingRequests.delete(id);
+            rej(new DOMException("The catalog request was aborted.", "AbortError"));
+          };
+          signal.addEventListener("abort", abortHandler, { once: true });
+        }
+
         pendingRequests.set(id, {
-          res: (tools) => { clearTimeout(timer); res(tools); },
-          rej: (err) => { clearTimeout(timer); rej(err); }
+          res: (tools) => {
+            clearTimeout(timer);
+            if (abortHandler && signal) signal.removeEventListener("abort", abortHandler);
+            res(tools);
+          },
+          rej: (err) => {
+            clearTimeout(timer);
+            if (abortHandler && signal) signal.removeEventListener("abort", abortHandler);
+            rej(err);
+          }
         });
 
         port.postMessage({

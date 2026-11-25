@@ -191,4 +191,93 @@ describe("Open Agentic Web - Dynamic Swarm & Federation", () => {
     assert.strictEqual(receivedToolName, "website_query_inventory");
     assert.ok(receivedMeta?.nodeId === "node_a" || receivedMeta?.nodeId === "node_b");
   });
+
+  it("detects tool ambiguity when un-namespaced duplicate tool is resolved", () => {
+    const swarm = new AgentSwarm();
+    swarm.registerNode({
+      id: "node_x",
+      name: "Service X",
+      category: "Services",
+      tools: [{ name: "website_book", description: "Book via X" }]
+    });
+    swarm.registerNode({
+      id: "node_y",
+      name: "Service Y",
+      category: "Services",
+      tools: [{ name: "website_book", description: "Book via Y" }]
+    });
+
+    swarm.getOpenAITools(); // triggers collision detection
+    const resolved = swarm.resolveTool("website_book");
+    assert.strictEqual(resolved.isAmbiguous, true);
+    assert.strictEqual(resolved.node, null);
+  });
+
+  it("validates tool arguments prior to execution in runTurn and reports schema errors", async () => {
+    const swarm = new AgentSwarm({
+      defaultRouter: "mock",
+      defaultModel: "alibaba/qwen3.8-flash"
+    });
+
+    swarm.registerNode({
+      id: "validator_node",
+      name: "Validator Node",
+      category: "Testing",
+      tools: [
+        {
+          name: "website_strict_action",
+          description: "Strict parameter tool",
+          inputSchema: {
+            type: "object",
+            properties: {
+              email: { type: "string", format: "email" }
+            },
+            required: ["email"]
+          }
+        }
+      ]
+    });
+
+    // In mock mode with strict tool, mock LLM returns { invalid_key: 123 } which fails schema validation
+    let executorCalled = false;
+    const res = await swarm.runTurn({
+      prompt: "Execute strict action",
+      apiKey: "mock",
+      actionExecutor: async () => {
+        executorCalled = true;
+        return { ok: true };
+      }
+    });
+
+    // The executor should NOT be called with invalid arguments; runTurn returns validation error
+    assert.strictEqual(executorCalled, false);
+    assert.strictEqual(res.ok, true); // completed turn
+    assert.ok(res.text.includes("ActionValidationError") || res.text.includes("Tool argument validation failed"));
+  });
+
+  it("supports AbortSignal cancellation during runTurn", async () => {
+    const swarm = new AgentSwarm({
+      defaultRouter: "mock",
+      defaultModel: "alibaba/qwen3.8-flash"
+    });
+
+    swarm.registerNode({
+      id: "slow_node",
+      name: "Slow Node",
+      category: "Testing",
+      tools: ["website_slow_work"]
+    });
+
+    const controller = new AbortController();
+    controller.abort(new Error("User cancelled operation"));
+
+    await assert.rejects(
+      async () => swarm.runTurn({
+        prompt: "Run cancelled turn",
+        apiKey: "mock",
+        signal: controller.signal
+      }),
+      (err) => err.message.includes("User cancelled") || err.name === "AbortError"
+    );
+  });
 });

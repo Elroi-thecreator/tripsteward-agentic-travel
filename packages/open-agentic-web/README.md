@@ -1,12 +1,12 @@
 # 🌐 Open Agentic Web SDK (`open-agentic-web`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.3-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
+[![npm version](https://img.shields.io/badge/npm-v1.1.0-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Specification](https://img.shields.io/badge/Spec-Open%20Agentic%20Web%20MVP%200.3-orange.svg)](https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json)
 
 The **Open Agentic Web SDK** (`open-agentic-web`) is the zero-dependency SDK, conformance CLI & browser runtime for building, validating, and federating autonomous web agents.
 
-Compliant with the **Cognizant AI Lab / Mozilla Otari / MIT NANDA Open Agentic Web (MVP Profile 0.3)** specification.
+Compliant with the **Cognizant AI Lab / Mozilla Otari / MIT NANDA Open Agentic Web (MVP Profile 0.3)** specification and the **Linux Foundation / Google Agent-to-Agent (A2A)** standard.
 
 ---
 
@@ -16,9 +16,10 @@ In the emerging Agentic Web, AI agents don't just chat—they act directly on we
 
 Building a conforming agentic website previously required manually writing repetitive boilerplate:
 1. **Manifest & Network validation**: No standard CLI existed to verify whether your `agent-manifest.json` or `*.network.json` met the Open Agentic Web specification.
-2. **Action tool validation**: Tools called by LLMs (`website_*`) lacked standard runtime JSON schema enforcement and effect classification (`read` vs `irreversible`).
-3. **Cross-origin iframe bridging**: Implementing secure postMessage handshakes and MessageChannels for `bridge/action-bridge.html` required hundreds of lines of fragile glue code.
-4. **Dynamic Swarm Federation**: No reusable client existed to discover, consent-check, and mount remote agent nodes in browser RAM on the fly.
+2. **Action tool validation**: Tools called by LLMs (`website_*`) lacked standard runtime JSON schema enforcement, regex patterns, formats, defaults, and effect classification (`read` vs `irreversible` vs `undoable`).
+3. **Cross-origin iframe bridging**: Implementing secure postMessage handshakes, origin filtering, and MessageChannels for `bridge/action-bridge.html` required hundreds of lines of fragile glue code.
+4. **Dynamic Swarm Federation**: No reusable client existed to discover, consent-check, auto-route tools, and mount remote agent nodes in browser RAM on the fly.
+5. **Standard Interoperability**: Bridging Neuro SAN graphs with the broader ecosystem (MCP, WebMCP, and A2A Agent Cards) required bespoke converters.
 
 `open-agentic-web` provides a **zero-dependency**, universal toolkit for all of these needs.
 
@@ -38,7 +39,7 @@ npx open-agentic-web validate .
 
 ## 🚀 1. Conformance Linter & CLI (`oaw` / `open-agentic-web`)
 
-Validate any agentic website or scaffold a brand-new conforming node in seconds.
+Validate any agentic website, start an interactive local test playground, or export standard A2A Agent Cards.
 
 ### Validate Conformance
 Run automated checks against `agent-manifest.json`, declarative `*.network.json` graphs, `bridge/action-bridge.html`, and `site-actions.js`:
@@ -47,25 +48,11 @@ Run automated checks against `agent-manifest.json`, declarative `*.network.json`
 # Validate current directory
 npx open-agentic-web validate .
 
+# Validate with machine-readable JSON output (ideal for CI/CD)
+npx oaw validate . --json
+
 # Validate multiple agent nodes
 npx oaw validate sites/hub sites/mobility sites/ticketing
-```
-
-Output:
-```text
-✈️ Running Open Agentic Web Conformance Linter
-
-Testing Node: ./sites/tripsteward-hub
-  ✅ PASS: Contains 'agent-manifest.json'
-  ✅ PASS: Manifest declares valid name or brand ('HarborView Hotel')
-  ✅ PASS: Network[0] declares 'front_man' (travel_concierge)
-  ✅ PASS: Referenced network file exists: ./tripsteward_concierge.network.json
-  ✅ PASS: Manifest declares 'llm_router' with valid 'base_url'
-  ✅ PASS: Node provides 'bridge/action-bridge.html' for cross-origin tool execution
-  ✅ PASS: Front agent 'travel_concierge' has grounded instructions
-  ✅ PASS: site-actions provides registered action tools (7 declared)
-
-All nodes conform 100% to Open Agentic Web MVP Profile 0.3!
 ```
 
 ### Validate Federated Mesh
@@ -73,6 +60,25 @@ Verify cross-site peer link mappings and compatibility between an orchestrator h
 
 ```bash
 npx oaw federation sites/hub sites/mobility sites/ticketing
+# Or in JSON format:
+npx oaw federation sites/hub sites/mobility sites/ticketing --json
+```
+
+### Local Dev Server & Interactive Playground (`oaw dev`)
+Start a zero-dependency local static server preconfigured with correct CORS headers and an interactive in-browser tool test harness:
+
+```bash
+# Start local server on port 3000
+npx oaw dev sites/tripsteward-hub --port 3000
+
+# Open http://localhost:3000/playground to test site actions and bridge handshakes interactively!
+```
+
+### Export A2A Agent Card (`oaw a2a`)
+Generate a standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Card (`.well-known/agent.json`) from any conforming node:
+
+```bash
+npx oaw a2a sites/tripsteward-hub --out .well-known/agent.json
 ```
 
 ### Scaffold a New Agentic Web Node
@@ -90,21 +96,22 @@ my-dining-node/
 ├── site-actions.js              # Executable JavaScript tools (website_*)
 ├── bridge/
 │   └── action-bridge.html       # Sandboxed cross-origin iframe bridge
-└── links.json                   # Peer network resolution map
+├── links.json                   # Peer network resolution map
+└── index.html                   # Static landing page
 ```
 
 ---
 
 ## 🛠️ 2. Site Actions Framework (`open-agentic-web/actions`)
 
-Define grounded, machine-executable action tools with built-in JSON schema validation and effect tagging.
+Define grounded, machine-executable action tools with built-in JSON schema validation, default injection, format/pattern checking, audit logging, and undo support.
 
 ```javascript
 import { defineAction, createActionRegistry } from "open-agentic-web";
 
 export class SiteActions {
   static registerActions(registry) {
-    // 1. Read-only action (safe query, no confirmation needed)
+    // 1. Read-only action with schema validation and default value injection
     registry.register(
       defineAction({
         name: "website_search_availability",
@@ -114,23 +121,39 @@ export class SiteActions {
           type: "object",
           properties: {
             category: { type: "string" },
-            party_size: { type: "integer", minimum: 1 }
+            party_size: { type: "integer", minimum: 1, default: 2 },
+            guest_email: { type: "string", format: "email" }
           },
-          required: ["party_size"],
+          required: ["category"],
           additionalProperties: false
         },
         execute: async (args) => {
           return {
             ok: true,
-            available_slots: [
-              { time: "7:00 PM", table: "Patio A" }
-            ]
+            party_size: args.party_size, // automatically defaulted if omitted
+            available_slots: [{ time: "7:00 PM", table: "Patio A" }]
           };
         }
       })
     );
 
-    // 2. Irreversible action (enforces human confirmation before execution)
+    // 2. Undoable action with dedicated undo handler and audit trail
+    registry.register(
+      defineAction({
+        name: "website_hold_reservation",
+        description: "Hold hotel room reservation temporarily.",
+        effect: "undoable",
+        inputSchema: {
+          type: "object",
+          properties: { roomId: { type: "string" } },
+          required: ["roomId"]
+        },
+        execute: async (args) => ({ status: "HELD", roomId: args.roomId }),
+        undo: async (args, execResult) => ({ status: "RELEASED", roomId: args.roomId })
+      })
+    );
+
+    // 3. Irreversible action (enforces human confirmation before execution)
     registry.register(
       defineAction({
         name: "website_commit_booking",
@@ -161,6 +184,8 @@ export class SiteActions {
 
 Enable parent orchestrators to execute your site tools from an iframe using the standard `nsdeploy-actions-v1` protocol.
 
+Features **fail-closed security** (defaults to rejecting cross-origin calls unless origin is listed in `peer_policy`), **policy queueing** (eliminates race conditions while `agent-manifest.json` loads), and **pre-execution argument validation**.
+
 ### In `bridge/action-bridge.html`:
 ```html
 <!doctype html>
@@ -172,13 +197,13 @@ Enable parent orchestrators to execute your site tools from an iframe using the 
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.3",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.3/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.0",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.0/"
       }
     }
     </script>
     <script type="module">
-      import { createActionRegistry, setupActionBridge } from "open-agentic-web";
+      import { createActionRegistry, setupActionBridge, createConsentDialog } from "open-agentic-web";
       import { SiteActions } from "../site-actions.js";
 
       const registry = createActionRegistry();
@@ -188,8 +213,13 @@ Enable parent orchestrators to execute your site tools from an iframe using the 
       // Enforces human confirmation dialog for irreversible actions
       setupActionBridge({
         registry,
+        manifestUrl: "../agent-manifest.json",
         onConfirm: async ({ action, arguments: args, origin }) => {
-          return window.confirm(`Authorize action '${action}' requested by ${origin}?`);
+          return createConsentDialog({
+            title: "Authorize Direct Booking",
+            message: `An orchestrator at ${origin} requests permission to execute '${action}'.`,
+            details: args
+          });
         }
       });
     </script>
@@ -207,28 +237,28 @@ const client = createActionBridgeClient({
   brand: "Partner Transfers"
 });
 
-// Calls remote site action over sandboxed MessagePort
+// Calls remote site action over sandboxed MessagePort with optional AbortSignal
 const quote = await client.execute("website_quote_transfer", {
   destination: "HarborView Hotel",
   flight_number: "UA 482"
-});
+}, { signal: abortController.signal });
 ```
 
 ---
 
-## 🌐 4. Dynamic Federation & In-Browser LLM Runtime (`open-agentic-web/federation`)
+## 🌐 4. Dynamic Federation & Provider-Agnostic LLM Runtime (`open-agentic-web/federation`)
 
-Mount third-party agentic web nodes on the fly in browser RAM and execute autonomous agent turns with tool-calling:
+Mount third-party agentic web nodes on the fly in browser RAM and execute autonomous agent turns with tool-calling across any LLM provider:
 
 ```javascript
 import { AgentSwarm } from "open-agentic-web";
 
 const swarm = new AgentSwarm({
-  defaultRouter: "https://api.otari.ai/api/v1",
+  defaultRouter: "https://api.otari.ai/api/v1", // Mozilla Otari, OpenAI, Anthropic, Gemini, Ollama
   defaultModel: "alibaba/qwen3.8-flash"
 });
 
-// 1. Mount an external specialist node with interactive user consent
+// 1. Mount an external specialist node with interactive user consent & live schema catalog
 await swarm.mountFromUrl("https://partner-dining.com", {
   onConsent: async ({ candidate, origin }) => {
     return window.confirm(`Allow agent '${candidate.name}' from ${origin} to join your journey?`);
@@ -238,13 +268,12 @@ await swarm.mountFromUrl("https://partner-dining.com", {
 // 2. Search active specialist nodes in the swarm
 const diningAgents = swarm.search({ category: "Dining" });
 
-// 3. Execute an autonomous multi-step turn with BYOK LLM tool-calling
+// 3. Execute an autonomous multi-step turn with tool-calling (OpenAI, Anthropic, Gemini, Ollama, or custom adapter)
 const turnResult = await swarm.runTurn({
   prompt: "Find a waterfront dinner table for 2 guests around 7 PM",
   apiKey: "otk_my_key", // Visitor's BYOK key
-  actionExecutor: async (toolName, args) => {
-    return client.execute(toolName, args);
-  },
+  provider: "openai",   // "openai" | "anthropic" | "gemini" | "ollama"
+  signal: abortController.signal, // Supports cancellation
   onStep: ({ step, tool, arguments: args, result }) => {
     console.log(`[Step ${step}] Executed ${tool}:`, result);
   }
@@ -262,16 +291,18 @@ const linksConfig = swarm.exportLinks("my_hub_network");
 
 | Module | Export | Description |
 |---|---|---|
-| `open-agentic-web/validator` | `validateNode(dir)` | End-to-end conformance validator for an agentic web node |
+| `open-agentic-web/validator` | `validateNode(dir, opts)` | End-to-end conformance validator for an agentic web node |
 | `open-agentic-web/validator` | `validateManifest(json)` | Validates `agent-manifest.json` against MVP Profile 0.3 |
 | `open-agentic-web/validator` | `validateNetwork(json)` | Validates declarative `*.network.json` graph |
 | `open-agentic-web/validator` | `validateFederation(hub, peers)` | Validates multi-site federated mesh and link mappings |
-| `open-agentic-web/actions` | `defineAction(def)` | Defines action tool with runtime argument schema validation |
-| `open-agentic-web/actions` | `createActionRegistry()` | Manages action registry, discovery catalog, and execution |
-| `open-agentic-web/actions` | `validateSchema(schema, data)` | Pure-JS JSON schema validator (zero external deps) |
-| `open-agentic-web/bridge` | `setupActionBridge(opts)` | Connects iframe postMessage handler to action registry |
-| `open-agentic-web/bridge` | `createActionBridgeClient(opts)` | Parent orchestrator client for calling remote bridges |
-| `open-agentic-web/federation` | `AgentSwarm` | Dynamic multi-agent swarm manager with consent hooks |
+| `open-agentic-web/actions` | `defineAction(def)` | Defines action tool with runtime argument schema validation and undo |
+| `open-agentic-web/actions` | `createActionRegistry(opts)` | Manages action registry, discovery catalog, audit trail, and execution |
+| `open-agentic-web/actions` | `validateSchema(schema, data)` | Pure-JS JSON schema validator (`pattern`, `format`, `default`, `oneOf`, `anyOf`) |
+| `open-agentic-web/actions` | `toA2AAgentCard(manifest, opts)` | Generates standard Linux Foundation / Google A2A Agent Card |
+| `open-agentic-web/actions` | `createConsentDialog(opts)` | Drop-in accessible HTML modal dialog for user confirmation |
+| `open-agentic-web/bridge` | `setupActionBridge(opts)` | Connects iframe postMessage handler to action registry with fail-closed security |
+| `open-agentic-web/bridge` | `createActionBridgeClient(opts)` | Parent orchestrator client for calling remote bridges with `signal` support |
+| `open-agentic-web/federation` | `AgentSwarm` | Dynamic multi-agent swarm manager with tool collision safety and provider-agnostic `runTurn()` |
 
 ---
 

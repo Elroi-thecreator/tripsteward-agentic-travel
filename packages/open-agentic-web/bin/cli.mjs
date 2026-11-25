@@ -5,15 +5,17 @@
  * Validates, scaffolds, and inspects conforming Agentic Web nodes.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toA2AAgentCard } from "../src/actions.js";
 import { validateFederation, validateManifest, validateNetwork, validateNode } from "../src/validator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.0.3";
+let VERSION = "1.1.0";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;
@@ -42,17 +44,21 @@ ${colors.bold}USAGE:${colors.reset}
   $ oaw <command> [options]
 
 ${colors.bold}COMMANDS:${colors.reset}
-  ${colors.cyan}validate${colors.reset} [paths...]       Validate one or more site directories for specification conformance.
-  ${colors.cyan}federation${colors.reset} <hub> [peers...] Validate cross-site federation, peer links, and manifests.
+  ${colors.cyan}validate${colors.reset} [paths...]       Validate one or more site directories or URLs (--json for CI).
+  ${colors.cyan}federation${colors.reset} <hub> [peers...] Validate cross-site federation, peer links, and manifests (--json for CI).
+  ${colors.cyan}dev${colors.reset} [dir] [--port 3000]   Start local development server with CORS & interactive playground.
   ${colors.cyan}init${colors.reset} [dir]                Scaffold a new, 100% conforming Open Agentic Web node.
   ${colors.cyan}inspect${colors.reset} [path]             Inspect and print the declarative agent graph and tool catalog.
+  ${colors.cyan}a2a${colors.reset} [dir] [--out path]    Generate standard Agent-to-Agent (A2A) agent.json card.
   ${colors.cyan}help${colors.reset}                    Display this help message.
   ${colors.cyan}version${colors.reset}                 Print current package version.
 
 ${colors.bold}EXAMPLES:${colors.reset}
   $ npx open-agentic-web validate .
-  $ npx oaw validate sites/tripsteward-hub sites/cityglide-node
+  $ npx oaw validate sites/tripsteward-hub sites/cityglide-node --json
   $ npx oaw federation sites/tripsteward-hub sites/cityglide-node sites/metropass-node
+  $ npx oaw dev sites/cityglide-node --port 8081
+  $ npx oaw a2a sites/tripsteward-hub
   $ npx oaw init my-dining-node --name "tablebespoke_dining"
 `);
 }
@@ -141,30 +147,44 @@ async function validateRemoteUrl(urlStr) {
 }
 
 async function runValidate() {
-  const targetDirs = args.slice(1).length > 0 ? args.slice(1) : ["."];
+  const isJson = args.includes("--json");
+  const rawTargets = args.slice(1).filter(a => a !== "--json");
+  const targetDirs = rawTargets.length > 0 ? rawTargets : ["."];
   let overallFailed = 0;
+  const reports = [];
 
-  console.log(`\n${colors.bold}✈️  Running Open Agentic Web Conformance Linter${colors.reset}\n`);
+  if (!isJson) {
+    console.log(`\n${colors.bold}✈️  Running Open Agentic Web Conformance Linter${colors.reset}\n`);
+  }
 
   for (const dir of targetDirs) {
     const isRemote = dir.startsWith("http://") || dir.startsWith("https://");
     const summary = isRemote ? await validateRemoteUrl(dir) : await validateNode(dir);
-    console.log(`${colors.bold}Testing ${isRemote ? "Live Node" : "Node"}:${colors.reset} ${colors.cyan}${summary.target}${colors.reset}`);
+    reports.push(summary);
 
-    summary.results.forEach(res => {
-      if (res.status === "PASS") {
-        console.log(`  ${colors.green}✅ PASS:${colors.reset} ${res.message}`);
-      } else if (res.status === "WARN") {
-        console.log(`  ${colors.yellow}⚠️ WARN:${colors.reset} ${res.message}`);
-      } else {
-        console.log(`  ${colors.red}❌ FAIL:${colors.reset} ${res.message}`);
-      }
-    });
+    if (!isJson) {
+      console.log(`${colors.bold}Testing ${isRemote ? "Live Node" : "Node"}:${colors.reset} ${colors.cyan}${summary.target}${colors.reset}`);
+
+      summary.results.forEach(res => {
+        if (res.status === "PASS") {
+          console.log(`  ${colors.green}✅ PASS:${colors.reset} ${res.message}`);
+        } else if (res.status === "WARN") {
+          console.log(`  ${colors.yellow}⚠️ WARN:${colors.reset} ${res.message}`);
+        } else {
+          console.log(`  ${colors.red}❌ FAIL:${colors.reset} ${res.message}`);
+        }
+      });
+      console.log("");
+    }
 
     if (!summary.valid) {
       overallFailed += summary.failed;
     }
-    console.log("");
+  }
+
+  if (isJson) {
+    console.log(JSON.stringify({ valid: overallFailed === 0, failed: overallFailed, reports }, null, 2));
+    process.exit(overallFailed > 0 ? 1 : 0);
   }
 
   if (overallFailed > 0) {
@@ -177,17 +197,29 @@ async function runValidate() {
 }
 
 async function runFederation() {
-  const paths = args.slice(1);
+  const isJson = args.includes("--json");
+  const paths = args.slice(1).filter(a => a !== "--json");
   if (paths.length < 1) {
-    console.error(`${colors.red}Error: 'federation' requires at least a hub directory.${colors.reset}`);
+    if (isJson) {
+      console.log(JSON.stringify({ valid: false, error: "'federation' requires at least a hub directory." }, null, 2));
+    } else {
+      console.error(`${colors.red}Error: 'federation' requires at least a hub directory.${colors.reset}`);
+    }
     process.exit(1);
   }
 
   const hubDir = paths[0];
   const peerDirs = paths.slice(1);
 
-  console.log(`\n${colors.bold}🌐 Validating Federated Mesh:${colors.reset} Hub (${hubDir}) + ${peerDirs.length} peer(s)\n`);
+  if (!isJson) {
+    console.log(`\n${colors.bold}🌐 Validating Federated Mesh:${colors.reset} Hub (${hubDir}) + ${peerDirs.length} peer(s)\n`);
+  }
   const fed = await validateFederation(hubDir, peerDirs);
+
+  if (isJson) {
+    console.log(JSON.stringify(fed, null, 2));
+    process.exit(fed.valid ? 0 : 1);
+  }
 
   console.log(`Total checks run: ${fed.totalChecks}`);
   console.log(`Passed: ${colors.green}${fed.totalPassed}${colors.reset} | Failed: ${colors.red}${fed.totalFailed}${colors.reset}`);
@@ -428,6 +460,146 @@ async function runInspect() {
   console.log("");
 }
 
+function runDev() {
+  const portIndex = args.indexOf("--port");
+  const port = portIndex !== -1 && args[portIndex + 1] ? parseInt(args[portIndex + 1], 10) : 3000;
+  const nonFlagArgs = args.slice(1).filter(a => a !== "--port" && a !== String(port));
+  const targetDir = resolve(nonFlagArgs[0] || ".");
+
+  if (!existsSync(targetDir)) {
+    console.error(`${colors.red}Directory not found: ${targetDir}${colors.reset}`);
+    process.exit(1);
+  }
+
+  const mimeTypes = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".json": "application/json",
+    ".css": "text/css",
+    ".png": "image/png",
+    ".svg": "image/svg+xml"
+  };
+
+  const server = createServer((req, res) => {
+    // Enable CORS and iframe embedding for local agentic web testing
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("X-Frame-Options", "ALLOWALL");
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const urlPath = req.url.split("?")[0];
+    let filePath = join(targetDir, urlPath === "/" ? "index.html" : urlPath);
+
+    if (urlPath === "/playground") {
+      // Interactive browser test harness
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Open Agentic Web — Local Test Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.5; color: #1e293b; }
+    h1 { color: #0284c7; }
+    pre { background: #f1f5f9; padding: 12px; border-radius: 6px; overflow: auto; }
+    button { padding: 8px 16px; border-radius: 6px; background: #0284c7; color: white; border: none; cursor: pointer; font-weight: 500; }
+    input { padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 60%; }
+    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🌐 Open Agentic Web Local Test Playground</h1>
+  <p>Local Node: <code>${basename(targetDir)}</code> (Port ${port})</p>
+  <div class="card">
+    <h3>1. Action Bridge Status</h3>
+    <iframe id="bridgeFrame" src="/bridge/action-bridge.html" style="width: 100%; height: 80px; border: 1px dashed #cbd5e1; border-radius: 6px;"></iframe>
+  </div>
+  <div class="card">
+    <h3>2. Test Site Action Invocation</h3>
+    <p>Call an action through the sandboxed postMessage iframe bridge:</p>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <input id="actionName" placeholder="e.g. website_query_inventory" value="website_query_inventory">
+      <button id="callBtn">Execute Action</button>
+    </div>
+    <h4>Result:</h4>
+    <pre id="output">Click 'Execute Action' to test handshake and execution...</pre>
+  </div>
+  <script type="module">
+    import { createActionBridgeClient } from "https://esm.sh/open-agentic-web@${VERSION}";
+    const client = createActionBridgeClient({ bridgeUrl: "/bridge/action-bridge.html" });
+    document.getElementById("callBtn").addEventListener("click", async () => {
+      const name = document.getElementById("actionName").value.trim();
+      const output = document.getElementById("output");
+      output.textContent = "Executing " + name + "...";
+      try {
+        const res = await client.execute(name, {});
+        output.textContent = JSON.stringify(res, null, 2);
+      } catch (err) {
+        output.textContent = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>`);
+      return;
+    }
+
+    if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+      filePath = join(filePath, "index.html");
+    }
+
+    if (existsSync(filePath) && !statSync(filePath).isDirectory()) {
+      const ext = extname(filePath);
+      const contentType = mimeTypes[ext] || "text/plain";
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(readFileSync(filePath));
+    } else {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("404 Not Found");
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`\n${colors.bold}${colors.green}🚀 Open Agentic Web Dev Server running!${colors.reset}`);
+    console.log(`Serving node: ${colors.cyan}${targetDir}${colors.reset}`);
+    console.log(`Local URL:    ${colors.bold}http://localhost:${port}/${colors.reset}`);
+    console.log(`Playground:   ${colors.cyan}http://localhost:${port}/playground${colors.reset}`);
+    console.log(`Bridge URL:   http://localhost:${port}/bridge/action-bridge.html`);
+    console.log(`Manifest URL: http://localhost:${port}/agent-manifest.json\n`);
+  });
+}
+
+function runA2A() {
+  const nonFlagArgs = args.slice(1).filter(a => a !== "--out" && !a.startsWith("http"));
+  const targetDir = resolve(nonFlagArgs[0] || ".");
+  const outIndex = args.indexOf("--out");
+  const outPath = outIndex !== -1 && args[outIndex + 1] ? resolve(args[outIndex + 1]) : null;
+
+  const manifestPath = join(targetDir, "agent-manifest.json");
+  if (!existsSync(manifestPath)) {
+    console.error(`${colors.red}Error: No 'agent-manifest.json' found at ${targetDir}${colors.reset}`);
+    process.exit(1);
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+  const card = toA2AAgentCard(manifest);
+  const jsonStr = JSON.stringify(card, null, 2);
+
+  if (outPath) {
+    writeFileSync(outPath, jsonStr, "utf-8");
+    console.log(`${colors.green}Generated A2A Agent Card written to:${colors.reset} ${outPath}`);
+  } else {
+    console.log(jsonStr);
+  }
+}
+
 switch (command) {
   case "validate":
   case "test":
@@ -436,6 +608,15 @@ switch (command) {
     break;
   case "federation":
     runFederation();
+    break;
+  case "dev":
+  case "serve":
+  case "playground":
+    runDev();
+    break;
+  case "a2a":
+  case "card":
+    runA2A();
     break;
   case "init":
   case "scaffold":
