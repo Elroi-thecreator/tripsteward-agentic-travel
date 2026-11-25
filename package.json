@@ -25,6 +25,6 @@
   "author": "TripSteward Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "open-agentic-web": "file:packages/open-agentic-web"
+    "open-agentic-web": "^1.0.3"
   }
 }
