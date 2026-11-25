@@ -1,0 +1,50 @@
+{
+  "name": "open-agentic-web",
+  "version": "1.0.0",
+  "description": "Standard developer toolkit, conformance linter & in-browser runtime for the Open Agentic Web (Cognizant / Mozilla / MIT NANDA MVP Profile 0.3)",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "open-agentic-web": "./bin/cli.mjs",
+    "oaw": "./bin/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./actions": "./src/actions.js",
+    "./validator": "./src/validator.js",
+    "./bridge": "./src/bridge.js",
+    "./federation": "./src/federation.js"
+  },
+  "scripts": {
+    "test": "node test/validator.test.mjs && node test/actions.test.mjs && node test/federation.test.mjs"
+  },
+  "keywords": [
+    "open-agentic-web",
+    "agentic-web",
+    "ai-agents",
+    "neuro-san",
+    "nsdeploy",
+    "multi-agent",
+    "byok",
+    "federation",
+    "web-agents",
+    "cognizant"
+  ],
+  "author": "TripSteward & Open Agentic Web Community",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Elroi-thecreator/tripsteward-agentic-travel.git",
+    "directory": "packages/open-agentic-web"
+  },
+  "homepage": "https://github.com/Elroi-thecreator/tripsteward-agentic-travel#readme",
+  "bugs": {
+    "url": "https://github.com/Elroi-thecreator/tripsteward-agentic-travel/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

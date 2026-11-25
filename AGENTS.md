@@ -18,6 +18,7 @@ All autonomous AI coding agents (Antigravity, Claude, Cursor, Gemini, Copilot, C
    - `knowledge/development/DEV-001-runtime-and-site-actions.md`: In-browser runtime conventions, site-actions (`website_*`), and Otari BYOK inference standards.
    - `knowledge/development/DEV-002-vm-production-deployment.md`: Production VM deployment, systemd, and reverse proxy standards.
    - `knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md`: Agent authoring, dynamic discovery, and onboarding standards.
+   - `knowledge/development/DEV-004-open-agentic-web-sdk.md`: Open Agentic Web SDK, conformance linter CLI, and actions framework standards.
 4. **Ground all architectural and implementation decisions in these approved standards.** Never invent conflicting conventions or bypass existing specifications.
 
 ---

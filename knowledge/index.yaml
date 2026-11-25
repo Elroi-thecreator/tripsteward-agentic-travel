@@ -1,33 +1,47 @@
 # Knowledge Base Index
 
-knowledge_units_count: 6
-last_updated: "2026-11-22"
+system_name: "tripsteward-agentic-travel"
+repository_root: "."
+description: "TripSteward: Autonomous Federated Travel, Hotel & City Mobility Concierge — Open Agentic Web Cluster"
+knowledge_units_count: 7
+last_updated: "2026-11-25"
 
-domains:
+knowledge_units:
   product:
-    - id: PROD-001
+    - id: "PROD-001"
       title: "Open Agentic Web Challenge Specification & Submission Protocol"
-      path: "product/PROD-001-challenge-spec-and-rules.md"
+      file: "knowledge/product/PROD-001-challenge-spec-and-rules.md"
+      path: "knowledge/product/PROD-001-challenge-spec-and-rules.md"
       status: "APPROVED"
   architecture:
-    - id: ARCH-001
+    - id: "ARCH-001"
       title: "CuraPilot Zero-Leakage Multi-Specialist Consensus Architecture"
-      path: "architecture/ARCH-001-curapilot-consensus-architecture.md"
+      file: "knowledge/architecture/ARCH-001-curapilot-consensus-architecture.md"
+      path: "knowledge/architecture/ARCH-001-curapilot-consensus-architecture.md"
       status: "APPROVED"
-    - id: ARCH-002
+    - id: "ARCH-002"
       title: "TripSteward Autonomous Federated Travel & Cross-Site Booking Architecture"
-      path: "architecture/ARCH-002-tripsteward-federated-architecture.md"
+      file: "knowledge/architecture/ARCH-002-tripsteward-federated-architecture.md"
+      path: "knowledge/architecture/ARCH-002-tripsteward-federated-architecture.md"
       status: "APPROVED"
   development:
-    - id: DEV-001
+    - id: "DEV-001"
       title: "In-Browser Runtime, Site Actions & Otari BYOK Standards"
-      path: "development/DEV-001-runtime-and-site-actions.md"
+      file: "knowledge/development/DEV-001-runtime-and-site-actions.md"
+      path: "knowledge/development/DEV-001-runtime-and-site-actions.md"
       status: "APPROVED"
-    - id: DEV-002
+    - id: "DEV-002"
       title: "Production VM Deployment & Reverse Proxy Architecture"
-      path: "development/DEV-002-vm-production-deployment.md"
+      file: "knowledge/development/DEV-002-vm-production-deployment.md"
+      path: "knowledge/development/DEV-002-vm-production-deployment.md"
       status: "APPROVED"
-    - id: DEV-003
+    - id: "DEV-003"
       title: "Agent Authoring, Dynamic Discovery & Onboarding Standards"
-      path: "development/DEV-003-agent-authoring-and-onboarding-guide.md"
+      file: "knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md"
+      path: "knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md"
+      status: "APPROVED"
+    - id: "DEV-004"
+      title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
+      file: "knowledge/development/DEV-004-open-agentic-web-sdk.md"
+      path: "knowledge/development/DEV-004-open-agentic-web-sdk.md"
       status: "APPROVED"

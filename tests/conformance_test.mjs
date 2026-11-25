@@ -218,6 +218,67 @@ async function testActions() {
   assert(registerRes.ok === true && registerRes.agent.id === "custom-summitpeak-trail-guides", "TripSteward registers dynamic agent node on the fly");
   assert(registerRes.total_registered_agents >= 3, "TripSteward updates federated swarm count dynamically");
 
+  // 5. Dogfood & Validate with open-agentic-web SDK
+  console.log("\n5. Testing Open Agentic Web SDK & Dynamic Federation Engine...");
+  const { validateNode, validateFederation, defineAction, createActionRegistry, validateSchema, AgentSwarm } = await import("open-agentic-web");
+
+  // Validate nodes using SDK
+  const hubNodeReport = await validateNode(join(rootDir, "sites", "tripsteward-hub"));
+  assert(hubNodeReport.valid === true, "open-agentic-web validates tripsteward-hub node with 0 errors");
+
+  const ridesNodeReport = await validateNode(join(rootDir, "sites", "cityglide-node"));
+  assert(ridesNodeReport.valid === true, "open-agentic-web validates cityglide-node with 0 errors");
+
+  const metroNodeReport = await validateNode(join(rootDir, "sites", "metropass-node"));
+  assert(metroNodeReport.valid === true, "open-agentic-web validates metropass-node with 0 errors");
+
+  // Validate multi-site federation using SDK
+  const fedMeshReport = await validateFederation(
+    join(rootDir, "sites", "tripsteward-hub"),
+    [join(rootDir, "sites", "cityglide-node"), join(rootDir, "sites", "metropass-node")]
+  );
+  assert(fedMeshReport.valid === true, "open-agentic-web validates complete 3-site federated mesh");
+  assert(fedMeshReport.totalPassed >= 70, `open-agentic-web passed all ${fedMeshReport.totalPassed} mesh conformance checks`);
+
+  // Test SDK Action creation & runtime schema validation
+  const testAction = defineAction({
+    name: "website_test_booking",
+    description: "SDK action definition test",
+    effect: "irreversible",
+    inputSchema: {
+      type: "object",
+      properties: { party_size: { type: "integer", minimum: 1 } },
+      required: ["party_size"],
+      additionalProperties: false
+    },
+    execute: async (args) => ({ confirmed: true, guests: args.party_size })
+  });
+
+  const actionSuccess = await testAction.execute({ party_size: 2 });
+  assert(actionSuccess.confirmed === true && actionSuccess.guests === 2, "open-agentic-web defineAction executes valid arguments");
+
+  let caughtError = false;
+  try {
+    await testAction.execute({ party_size: -5 });
+  } catch (err) {
+    caughtError = true;
+  }
+  assert(caughtError === true, "open-agentic-web defineAction rejects invalid arguments at runtime");
+
+  // Test SDK AgentSwarm in-browser manager
+  const swarm = new AgentSwarm();
+  swarm.registerNode({
+    id: "partner_rides",
+    name: "CityGlide Autonomous Fleet",
+    category: "Mobility",
+    front_man: "transfer_dispatcher",
+    tools: ["website_quote_transfer_service"]
+  });
+  const searchMobility = swarm.search({ category: "Mobility" });
+  assert(searchMobility.length === 1 && searchMobility[0].id === "partner_rides", "open-agentic-web AgentSwarm registers and searches active peers");
+  const exportedLinks = swarm.exportLinks("tripsteward_concierge");
+  assert(exportedLinks.networks.tripsteward_concierge !== undefined, "open-agentic-web exports dynamic links mapping format");
+
   console.log("\n========================================================");
   console.log(`Test Summary: ${passed} passed, ${failed} failed.`);
   console.log("========================================================\n");

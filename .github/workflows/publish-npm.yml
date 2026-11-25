@@ -1,0 +1,62 @@
+name: Publish open-agentic-web to npm
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run check (verify packaging without publishing to registry)'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for npm package provenance generation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Run Package Unit Tests
+        run: |
+          cd packages/open-agentic-web
+          npm test
+
+      - name: Run Root Conformance Suite
+        run: |
+          npm test
+
+      - name: Verify Package Tarball
+        run: |
+          cd packages/open-agentic-web
+          npm pack --dry-run
+
+      - name: Publish to npm (Dry Run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          cd packages/open-agentic-web
+          npm publish --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm (Production)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          cd packages/open-agentic-web
+          npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

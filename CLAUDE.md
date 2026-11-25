@@ -21,6 +21,7 @@
 - `knowledge/development/DEV-001-runtime-and-site-actions.md`: In-browser runtime, action tools (`website_*`), and BYOK Otari inference standards.
 - `knowledge/development/DEV-002-vm-production-deployment.md`: Production VM deployment, systemd, and reverse proxy architecture.
 - `knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md`: Agent authoring, dynamic discovery, and onboarding standards.
+- `knowledge/development/DEV-004-open-agentic-web-sdk.md`: Open Agentic Web SDK, conformance linter CLI, and actions framework standards.
 
 ---
 

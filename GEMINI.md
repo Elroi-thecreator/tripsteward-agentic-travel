@@ -11,6 +11,7 @@
   - `knowledge/development/DEV-001-runtime-and-site-actions.md` (In-browser runtime & Otari BYOK)
   - `knowledge/development/DEV-002-vm-production-deployment.md` (Production VM deployment & reverse proxy architecture)
   - `knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md` (Agent authoring & dynamic onboarding standards)
+  - `knowledge/development/DEV-004-open-agentic-web-sdk.md` (Open Agentic Web SDK & Conformance CLI standards)
 
 **MANDATORY STEP 2: Post-Change Knowledge Synchronization**
 - When modifying code or configuration, immediately update the relevant knowledge units in `knowledge/`.
