@@ -341,7 +341,7 @@ switch (command) {
   case "version":
   case "-v":
   case "--version":
-    console.log("open-agentic-web v1.0.0");
+    console.log("open-agentic-web v1.0.1");
     break;
   case "help":
   case "--help":
