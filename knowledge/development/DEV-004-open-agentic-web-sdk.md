@@ -6,7 +6,7 @@ type: "development"
 title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
 domain: "development"
 status: "APPROVED"
-version: "1.0.0"
+version: "1.0.2"
 ---
 
 ## Rule
@@ -16,14 +16,14 @@ All projects, nodes, and federated agent services in this repository and the bro
    - Location: `packages/open-agentic-web`
    - Zero external runtime dependencies: Built using standard Node.js built-ins (`node:fs`, `node:path`) and browser Web APIs (`MessageChannel`, `postMessage`, `fetch`).
    - Module Exports:
-     - `open-agentic-web/validator`: Conformance linter for `agent-manifest.json`, `*.network.json`, `links.json`, and `site-actions.js`.
-     - `open-agentic-web/actions`: Grounded site actions creator (`defineAction`), pure-JS JSON schema validator (`validateSchema`), and `createActionRegistry`.
-     - `open-agentic-web/bridge`: Sandboxed cross-origin iframe execution bridge (`setupActionBridge`, `createActionBridgeClient`) adhering to the `nsdeploy-actions-v1` protocol.
-     - `open-agentic-web/federation`: Dynamic multi-agent swarm manager (`AgentSwarm`) supporting on-the-fly remote node mounting with interactive user consent (`onConsent`).
+     - `open-agentic-web/validator`: Conformance linter for `agent-manifest.json`, `*.network.json`, `links.json`, and `site-actions.js` with deep action registration verification and true cross-site mesh federation auditing.
+     - `open-agentic-web/actions`: Grounded site actions creator (`defineAction`), pure-JS JSON schema validator (`validateSchema`), action registry with parameter catalogs, and human confirmation enforcement (`ActionSecurityError`).
+     - `open-agentic-web/bridge`: Sandboxed cross-origin iframe execution bridge (`setupActionBridge`, `createActionBridgeClient`) adhering to the `nsdeploy-actions-v1` protocol. Defaults to `allowedOrigins: ["*"]` for open federation while mandating `onConfirm` gates for irreversible actions, with concurrency-safe iframe connection promises.
+     - `open-agentic-web/federation`: Dynamic multi-agent swarm manager (`AgentSwarm`) supporting on-the-fly remote node mounting with interactive user consent (`onConsent`), runtime tool parameter schema hydration from declarative `*.network.json` (`network.hocon`), and an autonomous BYOK LLM tool-calling loop (`runTurn` & `getOpenAITools`) compatible with Mozilla Otari, OpenRouter, and OpenAI formats.
 2. **CLI Standards (`open-agentic-web` / `oaw`)**:
-   - `validate [paths...]`: Validates directories against the Cognizant / Mozilla / MIT NANDA MVP Profile 0.3 specification.
-   - `federation <hub> [peers...]`: Verifies mesh integrity, peer links, and cross-site compatibility.
-   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node.
+   - `validate [paths...]`: Validates directories against the Cognizant / Mozilla / MIT NANDA MVP Profile 0.3 specification with deep action tool execution validation.
+   - `federation <hub> [peers...]`: Verifies mesh integrity, peer links, and cross-site compatibility, printing granular link-by-link pass/fail diagnostics.
+   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps targeting the latest npm release (`open-agentic-web@1.0.2`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
 3. **Continuous Conformance & Automated Publishing**:
    - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite.

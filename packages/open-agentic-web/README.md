@@ -1,6 +1,6 @@
 # 🌐 Open Agentic Web SDK (`open-agentic-web`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.0.1-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
+[![npm version](https://img.shields.io/badge/npm-v1.0.2-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Specification](https://img.shields.io/badge/Spec-Open%20Agentic%20Web%20MVP%200.3-orange.svg)](https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json)
 
@@ -172,8 +172,8 @@ Enable parent orchestrators to execute your site tools from an iframe using the 
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.2",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.2/"
       }
     }
     </script>
@@ -252,14 +252,10 @@ const turnResult = await swarm.runTurn({
 
 console.log("Agent response:", turnResult.text);
 
-// 4. Export current peer mappings to links.json format
-const linksConfig = swarm.exportLinks("my_hub_network");
-});
-
-// Search active specialist nodes in the swarm
+// 4. Search active specialist nodes in the swarm
 const diningAgents = swarm.search({ category: "Dining" });
 
-// Export current peer mappings to links.json format
+// 5. Export current peer mappings to links.json format
 const linksConfig = swarm.exportLinks("my_hub_network");
 ```
 

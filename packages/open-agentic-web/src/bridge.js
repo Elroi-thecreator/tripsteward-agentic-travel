@@ -13,7 +13,7 @@ export const ACTION_BRIDGE_PROTOCOL = "nsdeploy-actions-v1";
  */
 export function setupActionBridge({
   registry,
-  allowedOrigins = null,
+  allowedOrigins = ["*"],
   onConfirm = null,
   protocol = ACTION_BRIDGE_PROTOCOL,
   windowObj = globalThis.window
@@ -22,10 +22,10 @@ export function setupActionBridge({
     throw new Error("Action bridge requires a browser window environment.");
   }
 
-  // Strict origin security: default to own origin if not specified
-  const effectiveAllowedOrigins = allowedOrigins !== null
+  // Cross-origin federation allows orchestrators to connect; irreversible actions strictly enforce onConfirm
+  const effectiveAllowedOrigins = Array.isArray(allowedOrigins) && allowedOrigins.length > 0
     ? allowedOrigins
-    : [windowObj.location?.origin].filter(Boolean);
+    : ["*"];
 
   if (effectiveAllowedOrigins.includes("*")) {
     console.warn(

@@ -116,6 +116,40 @@ export class AgentSwarm {
       throw new Error(`Manifest at '${manifestEndpoint}' does not declare any networks.`);
     }
 
+    let hydratedTools = manifest.actions?.agentTools || [];
+    if (network && typeof network.hocon === "string") {
+      try {
+        const netPath = network.hocon.replace(/^\.\//, "");
+        const netUrl = `${cleanUrl}/${netPath}`;
+        const netRes = await fetchFn(netUrl);
+        if (netRes && netRes.ok) {
+          const netJson = await netRes.json();
+          const declaredTools = netJson.tools || [];
+          const toolDefs = new Map();
+          for (const t of declaredTools) {
+            if (t && t.name) {
+              const toolName = t.name;
+              const toolDesc = t.description || t.instructions || "";
+              const toolParams = t.function?.parameters || t.parameters || { type: "object", properties: {} };
+              toolDefs.set(toolName, { name: toolName, description: toolDesc, inputSchema: toolParams });
+            }
+          }
+
+          if (toolDefs.size > 0) {
+            const rawTools = manifest.actions?.agentTools || Array.from(toolDefs.keys());
+            hydratedTools = rawTools.map(t => {
+              const toolName = typeof t === "string" ? t : t.name;
+              const baseName = toolName.replace(/^website_/, "");
+              const matched = toolDefs.get(toolName) || toolDefs.get(baseName) || toolDefs.get(`website_${baseName}`);
+              return matched || (typeof t === "object" ? t : { name: toolName, description: "", inputSchema: { type: "object", properties: {} } });
+            });
+          }
+        }
+      } catch {
+        // Fallback to manifest action tools
+      }
+    }
+
     const candidateNode = {
       id: manifest.name || network.name || `node_${Date.now()}`,
       name: manifest.brand || manifest.description || manifest.name || network.name,
@@ -123,7 +157,7 @@ export class AgentSwarm {
       node_url: cleanUrl,
       category: manifest.category || (network.tags && network.tags[0]) || "Specialist",
       description: manifest.description || network.description || "",
-      tools: manifest.actions?.agentTools || []
+      tools: hydratedTools
     };
 
     // User consent check

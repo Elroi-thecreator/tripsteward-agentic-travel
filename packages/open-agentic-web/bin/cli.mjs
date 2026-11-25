@@ -98,6 +98,17 @@ async function runFederation() {
   console.log(`Total checks run: ${fed.totalChecks}`);
   console.log(`Passed: ${colors.green}${fed.totalPassed}${colors.reset} | Failed: ${colors.red}${fed.totalFailed}${colors.reset}`);
 
+  if (fed.meshReport?.results && fed.meshReport.results.length > 0) {
+    console.log(`\n${colors.bold}Mesh Link & Policy Verification Details:${colors.reset}`);
+    fed.meshReport.results.forEach(res => {
+      if (res.status === "PASS") {
+        console.log(`  ${colors.green}✅ PASS:${colors.reset} ${res.message}`);
+      } else {
+        console.log(`  ${colors.red}❌ FAIL:${colors.reset} ${res.message}`);
+      }
+    });
+  }
+
   if (!fed.valid) {
     console.error(`\n${colors.red}${colors.bold}Federation validation failed.${colors.reset}\n`);
     process.exit(1);
@@ -227,8 +238,8 @@ export class SiteActions {
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.2",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.2/"
       }
     }
     </script>
@@ -239,11 +250,12 @@ export class SiteActions {
       const registry = createActionRegistry();
       SiteActions.registerActions(registry);
 
-      // Secure action bridge with human confirmation for irreversible actions
+      // Secure action bridge: allows cross-origin orchestrators while enforcing human confirmation for irreversible actions
       setupActionBridge({
         registry,
+        allowedOrigins: ["*"],
         onConfirm: async ({ action, arguments: args, origin }) => {
-          return window.confirm(\`[Action Authorization] \${origin} is requesting to execute '\${action}'. Authorize this action?\`);
+          return window.confirm("[Action Authorization] " + origin + " is requesting to execute '" + action + "'. Authorize this action?");
         }
       });
     </script>
@@ -265,8 +277,8 @@ export class SiteActions {
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.2",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.2/"
       }
     }
     </script>
@@ -284,7 +296,7 @@ export class SiteActions {
 `;
   writeFileSync(join(fullPath, "index.html"), indexHtml);
 
-  // 5. links.json
+  // 6. links.json
   const links = {
     networks: {
       [`${nodeName}_network`]: {}
@@ -295,6 +307,7 @@ export class SiteActions {
   console.log(`\n${colors.green}${colors.bold}✨ Scaffolding complete!${colors.reset}`);
   console.log(`Created conforming Open Agentic Web node at: ${colors.cyan}${fullPath}${colors.reset}`);
   console.log(`Files generated:
+  ├── index.html
   ├── agent-manifest.json
   ├── ${nodeName}.network.json
   ├── site-actions.js
@@ -341,7 +354,7 @@ switch (command) {
   case "version":
   case "-v":
   case "--version":
-    console.log("open-agentic-web v1.0.1");
+    console.log("open-agentic-web v1.0.2");
     break;
   case "help":
   case "--help":
