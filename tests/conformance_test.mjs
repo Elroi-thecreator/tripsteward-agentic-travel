@@ -220,7 +220,10 @@ async function testActions() {
 
   // 5. Dogfood & Validate with open-agentic-web SDK
   console.log("\n5. Testing Open Agentic Web SDK & Dynamic Federation Engine...");
-  const { validateNode, validateFederation, defineAction, createActionRegistry, validateSchema, AgentSwarm } = await import("open-agentic-web");
+  const sdkModuleUrl = existsSync(join(rootDir, "node_modules", "open-agentic-web"))
+    ? "open-agentic-web"
+    : pathToFileURL(join(rootDir, "packages", "open-agentic-web", "src", "index.js")).href;
+  const { validateNode, validateFederation, defineAction, createActionRegistry, validateSchema, AgentSwarm } = await import(sdkModuleUrl);
 
   // Validate nodes using SDK
   const hubNodeReport = await validateNode(join(rootDir, "sites", "tripsteward-hub"));
