@@ -1,0 +1,20 @@
+{
+  "name": "fixture_peer",
+  "networks": [
+    {
+      "name": "fixture_peer_net",
+      "front_man": "peer_dispatcher",
+      "hocon": "./peer.network.json"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "agentTools": ["quote_ground_transit"]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "hub_concierge",
+      "instructions": "Autonomous fixture hub concierge agent coordinating travel bookings across peers.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": { "destination": { "type": "string" } },
+          "required": ["destination"]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "tools": [
+    {
+      "name": "peer_dispatcher",
+      "instructions": "Autonomous fixture peer dispatcher agent quoting transit rates.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": { "origin": { "type": "string" } },
+          "required": ["origin"]
+        }
+      }
+    }
+  ]
+}

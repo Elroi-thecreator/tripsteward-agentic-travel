@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { ActionValidationError, createActionRegistry, defineAction, validateSchema } from "../src/actions.js";
+import { ActionSecurityError, ActionValidationError, createActionRegistry, defineAction, validateSchema } from "../src/actions.js";
 
 describe("Open Agentic Web - Site Actions & Validation", () => {
   it("validates data correctly with validateSchema", () => {
@@ -91,5 +91,50 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
 
     const execResult = await registry.execute("website_book_ticket", { count: 4 });
     assert.strictEqual(execResult.booked, 4);
+  });
+
+  it("enforces human confirmation on irreversible actions", async () => {
+    let confirmCalled = false;
+    const action = defineAction({
+      name: "website_irreversible_transfer",
+      description: "Transfer money or commit booking",
+      effect: "irreversible",
+      inputSchema: {
+        type: "object",
+        properties: { amount: { type: "number" } },
+        required: ["amount"]
+      },
+      execute: async (args) => ({ transferred: args.amount })
+    });
+
+    // 1. Rejected if requireConfirmation is set and not confirmed
+    await assert.rejects(
+      async () => action.execute({ amount: 100 }, { requireConfirmation: true, confirmed: false }),
+      ActionSecurityError
+    );
+
+    // 2. onConfirm callback approves
+    const approvedResult = await action.execute(
+      { amount: 100 },
+      {
+        onConfirm: async ({ name, arguments: args }) => {
+          confirmCalled = true;
+          assert.strictEqual(name, "website_irreversible_transfer");
+          assert.strictEqual(args.amount, 100);
+          return true; // user confirms
+        }
+      }
+    );
+    assert.strictEqual(confirmCalled, true);
+    assert.strictEqual(approvedResult.transferred, 100);
+
+    // 3. onConfirm callback rejects
+    await assert.rejects(
+      async () => action.execute(
+        { amount: 100 },
+        { onConfirm: async () => false } // user declines
+      ),
+      ActionSecurityError
+    );
   });
 });

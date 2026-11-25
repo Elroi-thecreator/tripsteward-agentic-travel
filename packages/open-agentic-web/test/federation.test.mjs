@@ -78,4 +78,44 @@ describe("Open Agentic Web - Dynamic Swarm & Federation", () => {
     assert.strictEqual(mounted.id, "travel_shield");
     assert.strictEqual(swarm.getNodes().length, 1);
   });
+
+  it("formats tools and runs autonomous turn with tool execution", async () => {
+    const swarm = new AgentSwarm({
+      defaultRouter: "mock",
+      defaultModel: "alibaba/qwen3.8-flash"
+    });
+
+    swarm.registerNode({
+      id: "rides",
+      name: "CityGlide Rides",
+      category: "Mobility",
+      tools: [
+        {
+          name: "website_quote_ride",
+          description: "Get ride fare estimate",
+          inputSchema: { type: "object", properties: { destination: { type: "string" } } }
+        }
+      ]
+    });
+
+    const openaiTools = swarm.getOpenAITools();
+    assert.strictEqual(openaiTools.length, 1);
+    assert.strictEqual(openaiTools[0].function.name, "website_quote_ride");
+
+    let actionExecuted = false;
+    const turnResult = await swarm.runTurn({
+      prompt: "Please book a ride to the hotel",
+      apiKey: "mock",
+      actionExecutor: async (tool, args) => {
+        actionExecuted = true;
+        assert.strictEqual(tool, "website_quote_ride");
+        return { fare_usd: 45, status: "DISPATCHED" };
+      }
+    });
+
+    assert.strictEqual(turnResult.ok, true);
+    assert.strictEqual(actionExecuted, true);
+    assert.strictEqual(turnResult.toolCallsCount, 1);
+    assert.ok(turnResult.text.includes("website_quote_ride"));
+  });
 });

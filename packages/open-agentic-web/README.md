@@ -130,7 +130,7 @@ export class SiteActions {
       })
     );
 
-    // 2. Irreversible action (triggers human confirmation dialog)
+    // 2. Irreversible action (enforces human confirmation before execution)
     registry.register(
       defineAction({
         name: "website_commit_booking",
@@ -168,6 +168,15 @@ Enable parent orchestrators to execute your site tools from an iframe using the 
   <head>
     <meta charset="utf-8">
     <title>Action Bridge</title>
+    <!-- Browser Import Map for static hosting without bundlers -->
+    <script type="importmap">
+    {
+      "imports": {
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+      }
+    }
+    </script>
     <script type="module">
       import { createActionRegistry, setupActionBridge } from "open-agentic-web";
       import { SiteActions } from "../site-actions.js";
@@ -176,7 +185,13 @@ Enable parent orchestrators to execute your site tools from an iframe using the 
       SiteActions.registerActions(registry);
 
       // Listens for postMessage and MessageChannel handshakes from orchestrators
-      setupActionBridge({ registry });
+      // Enforces human confirmation dialog for irreversible actions
+      setupActionBridge({
+        registry,
+        onConfirm: async ({ action, arguments: args, origin }) => {
+          return window.confirm(`Authorize action '${action}' requested by ${origin}?`);
+        }
+      });
     </script>
   </head>
   <body></body>
@@ -201,9 +216,9 @@ const quote = await client.execute("website_quote_transfer", {
 
 ---
 
-## 🌐 4. Dynamic Federation & Swarm Engine (`open-agentic-web/federation`)
+## 🌐 4. Dynamic Federation & In-Browser LLM Runtime (`open-agentic-web/federation`)
 
-Mount and orchestrate third-party agentic web nodes on the fly in browser RAM with user consent:
+Mount third-party agentic web nodes on the fly in browser RAM and execute autonomous agent turns with tool-calling:
 
 ```javascript
 import { AgentSwarm } from "open-agentic-web";
@@ -213,11 +228,32 @@ const swarm = new AgentSwarm({
   defaultModel: "alibaba/qwen3.8-flash"
 });
 
-// Mount an external specialist node with interactive user consent
+// 1. Mount an external specialist node with interactive user consent
 await swarm.mountFromUrl("https://partner-dining.com", {
   onConsent: async ({ candidate, origin }) => {
     return window.confirm(`Allow agent '${candidate.name}' from ${origin} to join your journey?`);
   }
+});
+
+// 2. Search active specialist nodes in the swarm
+const diningAgents = swarm.search({ category: "Dining" });
+
+// 3. Execute an autonomous multi-step turn with BYOK LLM tool-calling
+const turnResult = await swarm.runTurn({
+  prompt: "Find a waterfront dinner table for 2 guests around 7 PM",
+  apiKey: "otk_my_key", // Visitor's BYOK key
+  actionExecutor: async (toolName, args) => {
+    return client.execute(toolName, args);
+  },
+  onStep: ({ step, tool, arguments: args, result }) => {
+    console.log(`[Step ${step}] Executed ${tool}:`, result);
+  }
+});
+
+console.log("Agent response:", turnResult.text);
+
+// 4. Export current peer mappings to links.json format
+const linksConfig = swarm.exportLinks("my_hub_network");
 });
 
 // Search active specialist nodes in the swarm

@@ -1,0 +1,20 @@
+{
+  "name": "fixture_hub",
+  "networks": [
+    {
+      "name": "fixture_hub_net",
+      "front_man": "hub_concierge",
+      "hocon": "./hub.network.json"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "agentTools": ["query_traveler_profile", "reserve_hub_package"]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}

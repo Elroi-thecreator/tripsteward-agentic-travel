@@ -12,6 +12,14 @@ export class ActionValidationError extends Error {
   }
 }
 
+export class ActionSecurityError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = "ActionSecurityError";
+    this.details = details;
+  }
+}
+
 /**
  * Validates a JavaScript value against a JSON Schema subset.
  * Supports: type, properties, required, additionalProperties, enum, items, min/max, minLength/maxLength.
@@ -169,6 +177,32 @@ export function defineAction(definition) {
           validation.errors
         );
       }
+
+      // Human confirmation security gate for irreversible actions
+      if (effect === "irreversible") {
+        const confirmHook = context.onConfirm || definition.onConfirm;
+        if (typeof confirmHook === "function") {
+          const approved = await confirmHook({
+            name,
+            action: name,
+            arguments: args,
+            effect,
+            context
+          });
+          if (!approved) {
+            throw new ActionSecurityError(
+              `Action '${name}' was rejected by user confirmation policy.`,
+              { action: name, effect, arguments: args }
+            );
+          }
+        } else if (context.requireConfirmation && !context.confirmed) {
+          throw new ActionSecurityError(
+            `Action '${name}' is irreversible and requires explicit confirmation.`,
+            { action: name, effect, arguments: args }
+          );
+        }
+      }
+
       return execute(args, context);
     }
   };

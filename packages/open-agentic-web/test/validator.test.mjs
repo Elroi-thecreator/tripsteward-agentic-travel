@@ -49,10 +49,32 @@ describe("Open Agentic Web - Conformance Validator", () => {
     assert.strictEqual(report.valid, true);
   });
 
+  it("validates standalone fixtures and federated mesh independently", async () => {
+    const fixtureHubDir = join(__dirname, "fixtures", "hub-node");
+    const fixturePeerDir = join(__dirname, "fixtures", "peer-node");
+
+    const hubSummary = await validateNode(fixtureHubDir);
+    assert.strictEqual(hubSummary.valid, true, `fixture hub failed: ${JSON.stringify(hubSummary.results.filter(r => r.status === 'FAIL'))}`);
+
+    const peerSummary = await validateNode(fixturePeerDir);
+    assert.strictEqual(peerSummary.valid, true, `fixture peer failed: ${JSON.stringify(peerSummary.results.filter(r => r.status === 'FAIL'))}`);
+
+    // Validate true cross-site federation (peer links, network alignment, allowed peers)
+    const fed = await validateFederation(fixtureHubDir, [fixturePeerDir]);
+    assert.strictEqual(fed.valid, true, `federation failed: ${JSON.stringify(fed.meshReport.results.filter(r => r.status === 'FAIL'))}`);
+    assert.ok(fed.totalChecks > 10);
+  });
+
   it("validates live repository nodes (tripsteward-hub, cityglide-node, metropass-node)", async () => {
     const hubDir = join(repoRoot, "sites", "tripsteward-hub");
     const ridesDir = join(repoRoot, "sites", "cityglide-node");
     const expDir = join(repoRoot, "sites", "metropass-node");
+
+    // Skip if running as standalone npm package where monorepo sites are absent
+    const { existsSync } = await import("node:fs");
+    if (!existsSync(hubDir)) {
+      return;
+    }
 
     const hubSummary = await validateNode(hubDir);
     assert.strictEqual(hubSummary.valid, true, `tripsteward-hub failed: ${JSON.stringify(hubSummary.results.filter(r => r.status === 'FAIL'))}`);

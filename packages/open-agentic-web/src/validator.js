@@ -263,11 +263,67 @@ export async function validateNode(nodeDir) {
       );
 
       if (actionClass) {
-        const actionTools = manifest.actions?.agentTools || [];
-        report.assert(
-          actionTools.length > 0,
-          `site-actions provides registered action tools (${actionTools.length} declared in manifest)`
-        );
+        const registeredActions = new Map();
+        const mockRegistry = {
+          register: (def) => {
+            if (Array.isArray(def)) {
+              def.forEach(d => mockRegistry.register(d));
+              return;
+            }
+            if (def && def.name) {
+              registeredActions.set(def.name, def);
+            }
+          }
+        };
+
+        let registrationOk = false;
+        try {
+          if (typeof actionClass.registerActions === "function") {
+            await actionClass.registerActions(mockRegistry);
+            registrationOk = true;
+          } else if (typeof actionClass === "function") {
+            const inst = new actionClass();
+            if (typeof inst.registerActions === "function") {
+              await inst.registerActions(mockRegistry);
+              registrationOk = true;
+            }
+          }
+        } catch (err) {
+          report.assert(false, `SiteActions.registerActions execution failed: ${err.message}`, { warning: false });
+        }
+
+        if (registrationOk) {
+          report.assert(
+            registeredActions.size > 0,
+            `SiteActions.registerActions registered ${registeredActions.size} action tool(s)`
+          );
+
+          const manifestTools = manifest.actions?.agentTools || [];
+          for (const declaredTool of manifestTools) {
+            const baseName = declaredTool.replace(/^website_/, "");
+            const hasTool = registeredActions.has(declaredTool) ||
+                            registeredActions.has(baseName) ||
+                            registeredActions.has(`website_${baseName}`);
+            report.assert(
+              hasTool,
+              `Declared tool '${declaredTool}' is implemented and registered by site-actions.js`
+            );
+
+            if (hasTool) {
+              const act = registeredActions.get(declaredTool) ||
+                          registeredActions.get(baseName) ||
+                          registeredActions.get(`website_${baseName}`);
+              report.assert(
+                typeof act.execute === "function",
+                `Tool '${declaredTool}' provides an executable handler`
+              );
+              report.assert(
+                ["read", "irreversible", "undoable"].includes(act.effect),
+                `Tool '${declaredTool}' declares valid effect ('${act.effect || 'missing'}')`
+              );
+            }
+          }
+        }
       }
     } catch (err) {
       report.assert(false, `site-actions.js can be inspected: ${err.message}`, { warning: true });
@@ -278,23 +334,109 @@ export async function validateNode(nodeDir) {
 }
 
 /**
- * Validates cross-site federation between a hub and peer nodes
+ * Validates cross-site federation between a hub and peer nodes.
+ * Verifies links.json mapping, peer_policy permissions, and network/tool alignment.
  */
 export async function validateFederation(hubDir, peerDirs = []) {
+  const env = await getNodeEnv();
+  const { fs, path } = env || {};
+
+  const report = new ConformanceReport("federation-mesh");
   const hubSummary = await validateNode(hubDir);
   const peerSummaries = [];
 
-  for (const peerDir of peerDirs) {
-    peerSummaries.push(await validateNode(peerDir));
+  let hubManifest = null;
+  let hubLinks = null;
+
+  if (fs) {
+    try {
+      const hubManifestPath = path.join(path.resolve(hubDir), "agent-manifest.json");
+      if (fs.existsSync(hubManifestPath)) {
+        hubManifest = JSON.parse(fs.readFileSync(hubManifestPath, "utf-8"));
+      }
+      const hubLinksPath = path.join(path.resolve(hubDir), "links.json");
+      if (fs.existsSync(hubLinksPath)) {
+        hubLinks = JSON.parse(fs.readFileSync(hubLinksPath, "utf-8"));
+      }
+    } catch {}
   }
 
-  const allPassed = hubSummary.valid && peerSummaries.every(p => p.valid);
+  report.assert(hubLinks !== null, "Hub provides a readable 'links.json' for peer federation");
+
+  // Collect all mapped peer keys/URLs from hub's links.json
+  const mappedPeers = new Map();
+  if (hubLinks && hubLinks.networks) {
+    for (const [netName, peerMap] of Object.entries(hubLinks.networks)) {
+      if (typeof peerMap === "object" && peerMap !== null) {
+        for (const [peerAlias, endpoint] of Object.entries(peerMap)) {
+          mappedPeers.set(peerAlias.toLowerCase(), { networkName: netName, endpoint });
+        }
+      }
+    }
+  }
+
+  for (const peerDir of peerDirs) {
+    const peerSum = await validateNode(peerDir);
+    peerSummaries.push(peerSum);
+
+    if (fs) {
+      try {
+        const peerManifestPath = path.join(path.resolve(peerDir), "agent-manifest.json");
+        if (fs.existsSync(peerManifestPath)) {
+          const peerManifest = JSON.parse(fs.readFileSync(peerManifestPath, "utf-8"));
+          const peerNetName = peerManifest.networks?.[0]?.name || "";
+          const peerBrand = (peerManifest.brand || peerManifest.name || "").toLowerCase();
+          const peerDirBase = path.basename(peerDir).toLowerCase().replace(/-(node|site|app)$/, "");
+
+          // 1. Verify hub links.json maps this peer
+          const isMapped = mappedPeers.has(peerNetName.toLowerCase()) ||
+                           mappedPeers.has(peerBrand) ||
+                           mappedPeers.has(peerDirBase) ||
+                           Array.from(mappedPeers.keys()).some(k => peerNetName.toLowerCase().includes(k) || peerDirBase.includes(k));
+
+          report.assert(
+            isMapped,
+            `Hub links.json maps peer network '${peerNetName || peerDirBase}' (${path.basename(peerDir)})`
+          );
+
+          // 2. Peer policy permissions check
+          if (peerManifest.peer_policy) {
+            if (peerManifest.peer_policy.mode === "closed") {
+              const allowedPeers = peerManifest.peer_policy.allowed_peers || peerManifest.allowed_peers || [];
+              report.assert(
+                allowedPeers.length > 0,
+                `Peer '${peerNetName || peerDirBase}' declares allowed_peers for closed federation`
+              );
+            } else {
+              report.assert(
+                peerManifest.peer_policy.mode === "open",
+                `Peer '${peerNetName || peerDirBase}' has open federation mode`
+              );
+            }
+          }
+
+          // 3. Network alignment: peer front_man exists
+          const peerFrontMan = peerManifest.networks?.[0]?.front_man;
+          report.assert(
+            typeof peerFrontMan === "string" && peerFrontMan.length > 0,
+            `Peer '${peerNetName || peerDirBase}' declares active front_man '${peerFrontMan}'`
+          );
+        }
+      } catch (err) {
+        report.assert(false, `Error reading peer manifest in '${peerDir}': ${err.message}`);
+      }
+    }
+  }
+
+  const allPassed = hubSummary.valid && peerSummaries.every(p => p.valid) && report.failed === 0;
+
   return {
     valid: allPassed,
     hub: hubSummary,
     peers: peerSummaries,
-    totalChecks: hubSummary.total + peerSummaries.reduce((acc, p) => acc + p.total, 0),
-    totalPassed: hubSummary.passed + peerSummaries.reduce((acc, p) => acc + p.passed, 0),
-    totalFailed: hubSummary.failed + peerSummaries.reduce((acc, p) => acc + p.failed, 0)
+    meshReport: report.toSummary(),
+    totalChecks: hubSummary.total + peerSummaries.reduce((acc, p) => acc + p.total, 0) + report.passed + report.failed,
+    totalPassed: hubSummary.passed + peerSummaries.reduce((acc, p) => acc + p.passed, 0) + report.passed,
+    totalFailed: hubSummary.failed + peerSummaries.reduce((acc, p) => acc + p.failed, 0) + report.failed
   };
 }

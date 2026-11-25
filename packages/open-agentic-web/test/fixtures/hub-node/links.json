@@ -1,0 +1,7 @@
+{
+  "networks": {
+    "fixture_hub_net": {
+      "fixture_peer_net": "http://localhost:8081"
+    }
+  }
+}

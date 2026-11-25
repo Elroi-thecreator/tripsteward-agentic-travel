@@ -223,19 +223,66 @@ export class SiteActions {
   <head>
     <meta charset="utf-8">
     <title>Action Bridge - ${nodeName}</title>
+    <!-- Browser Import Map: Resolves bare module specifiers on static hosts without a bundler -->
+    <script type="importmap">
+    {
+      "imports": {
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+      }
+    }
+    </script>
     <script type="module">
       import { createActionRegistry, setupActionBridge } from "open-agentic-web";
       import { SiteActions } from "../site-actions.js";
 
       const registry = createActionRegistry();
       SiteActions.registerActions(registry);
-      setupActionBridge({ registry });
+
+      // Secure action bridge with human confirmation for irreversible actions
+      setupActionBridge({
+        registry,
+        onConfirm: async ({ action, arguments: args, origin }) => {
+          return window.confirm(\`[Action Authorization] \${origin} is requesting to execute '\${action}'. Authorize this action?\`);
+        }
+      });
     </script>
   </head>
-  <body></body>
+  <body>
+    <h3>Action Bridge for ${nodeName}</h3>
+  </body>
 </html>
 `;
   writeFileSync(join(bridgeDir, "action-bridge.html"), bridgeHtml);
+
+  // 5. index.html presentation starter
+  const indexHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${nodeName} - Open Agentic Web Node</title>
+    <script type="importmap">
+    {
+      "imports": {
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.0.0",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.0.0/"
+      }
+    }
+    </script>
+  </head>
+  <body style="font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.5;">
+    <h1>🌐 ${nodeName}</h1>
+    <p>This is a conforming <strong>Open Agentic Web (MVP Profile 0.3)</strong> node.</p>
+    <ul>
+      <li>Machine Manifest: <code><a href="./agent-manifest.json">agent-manifest.json</a></code></li>
+      <li>Declarative Network: <code><a href="./${nodeName}.network.json">${nodeName}.network.json</a></code></li>
+      <li>Action Bridge: <code><a href="./bridge/action-bridge.html">bridge/action-bridge.html</a></code></li>
+    </ul>
+  </body>
+</html>
+`;
+  writeFileSync(join(fullPath, "index.html"), indexHtml);
 
   // 5. links.json
   const links = {

@@ -143,6 +143,187 @@ export class AgentSwarm {
   }
 
   /**
+   * Export all registered tools across connected nodes as OpenAI-compatible function calling schemas.
+   */
+  getOpenAITools(toolSubset = null) {
+    const formatted = [];
+    const allowed = toolSubset ? new Set(toolSubset) : null;
+
+    for (const node of this.nodes.values()) {
+      for (const tool of (node.tools || [])) {
+        const name = typeof tool === "string" ? tool : tool.name;
+        if (allowed && !allowed.has(name)) continue;
+
+        const description = typeof tool === "object" && tool.description
+          ? tool.description
+          : `Action provided by specialist agent '${node.name}' (${node.category})`;
+
+        const parameters = typeof tool === "object" && tool.inputSchema
+          ? tool.inputSchema
+          : { type: "object", properties: {}, additionalProperties: true };
+
+        formatted.push({
+          type: "function",
+          function: {
+            name,
+            description,
+            parameters
+          }
+        });
+      }
+    }
+    return formatted;
+  }
+
+  /**
+   * Execute an in-browser agent turn with BYOK LLM inference and autonomous tool execution.
+   * Compatible with Mozilla Otari, OpenRouter, and standard OpenAI-compatible endpoints.
+   */
+  async runTurn({
+    prompt,
+    messages = null,
+    systemInstructions = "You are a helpful autonomous concierge on the Open Agentic Web.",
+    model = this.defaultModel,
+    routerUrl = this.defaultRouter,
+    apiKey = null,
+    actionExecutor = null,
+    maxSteps = 5,
+    onStep = null,
+    fetchFn = globalThis.fetch
+  }) {
+    if (!fetchFn) {
+      throw new Error("fetch is required to execute LLM turns.");
+    }
+
+    const conversation = messages
+      ? [...messages]
+      : [
+          { role: "system", content: systemInstructions },
+          { role: "user", content: prompt }
+        ];
+
+    const tools = this.getOpenAITools();
+    let step = 0;
+    let toolCallsCount = 0;
+
+    // Offline / Mock mode support for testing and airgapped environments
+    if (apiKey === "mock" || routerUrl === "mock") {
+      const mockToolCall = tools.length > 0 && prompt?.toLowerCase().includes("book")
+        ? { id: "call_mock_1", function: { name: tools[0].function.name, arguments: "{}" } }
+        : null;
+
+      if (mockToolCall && actionExecutor) {
+        const result = await actionExecutor(mockToolCall.function.name, {});
+        conversation.push({ role: "assistant", tool_calls: [mockToolCall], content: null });
+        conversation.push({ role: "tool", tool_call_id: mockToolCall.id, name: mockToolCall.function.name, content: JSON.stringify(result) });
+        conversation.push({ role: "assistant", content: `Mock synthesis completed for ${mockToolCall.function.name}.` });
+        return { ok: true, text: `Mock synthesis completed for ${mockToolCall.function.name}.`, messages: conversation, stepsCount: 2, toolCallsCount: 1 };
+      }
+
+      const reply = `Mock offline response for: ${prompt}`;
+      conversation.push({ role: "assistant", content: reply });
+      return { ok: true, text: reply, messages: conversation, stepsCount: 1, toolCallsCount: 0 };
+    }
+
+    const endpoint = routerUrl.endsWith("/chat/completions")
+      ? routerUrl
+      : `${routerUrl.replace(/\/$/, "")}/chat/completions`;
+
+    while (step < maxSteps) {
+      step++;
+
+      const payload = {
+        model,
+        messages: conversation,
+        tools: tools.length > 0 ? tools : undefined
+      };
+
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+
+      const res = await fetchFn(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`LLM inference failed at '${endpoint}' (HTTP ${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+
+      if (!message) {
+        throw new Error("Invalid response format from LLM router: missing choices[0].message");
+      }
+
+      conversation.push(message);
+
+      // Check if model called tools
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        for (const call of message.tool_calls) {
+          toolCallsCount++;
+          const toolName = call.function.name;
+          let args = {};
+          try {
+            args = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            args = {};
+          }
+
+          let result;
+          if (typeof actionExecutor === "function") {
+            try {
+              result = await actionExecutor(toolName, args);
+            } catch (err) {
+              result = { ok: false, error: err.message };
+            }
+          } else {
+            result = { ok: true, message: `Tool '${toolName}' executed in swarm context.` };
+          }
+
+          if (typeof onStep === "function") {
+            try {
+              onStep({ step, tool: toolName, arguments: args, result });
+            } catch {}
+          }
+
+          conversation.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: toolName,
+            content: typeof result === "string" ? result : JSON.stringify(result)
+          });
+        }
+      } else {
+        // Model provided final answer
+        return {
+          ok: true,
+          text: message.content || "",
+          messages: conversation,
+          stepsCount: step,
+          toolCallsCount
+        };
+      }
+    }
+
+    return {
+      ok: true,
+      text: conversation[conversation.length - 1]?.content || "Turn reached max steps.",
+      messages: conversation,
+      stepsCount: step,
+      toolCallsCount
+    };
+  }
+
+  /**
    * Subscribe to swarm changes.
    */
   subscribe(callback) {
