@@ -461,7 +461,14 @@ export function toA2AAgentCard(manifest, { baseUrl = "http://localhost", url = n
     name: manifest.brand || manifest.name || "Agentic Web Node",
     description: manifest.description || "",
     url: cleanBaseUrl,
-    version: manifest.specification ? manifest.specification.replace(/^.*MVP\s*/i, "0.3.0") : "0.3.0",
+    version: (() => {
+      if (manifest.version) return String(manifest.version);
+      if (manifest.specification) {
+        const match = String(manifest.specification).match(/v?(\d+\.\d+(?:\.\d+)?)/i);
+        if (match) return match[1].split('.').length === 2 ? `${match[1]}.0` : match[1];
+      }
+      return "0.3.0";
+    })(),
     provider: providerObj,
     identity: {
       brand: manifest.brand || manifest.name,

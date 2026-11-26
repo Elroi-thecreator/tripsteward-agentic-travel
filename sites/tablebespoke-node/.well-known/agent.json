@@ -2,11 +2,11 @@
   "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "TableBespoke Fine Dining & Chef's Tables",
   "description": "TableBespoke: Direct fine dining and culinary experience bookings on the Open Agentic Web",
-  "url": "http://localhost",
-  "version": "0.3.0-v0.3.json",
+  "url": "https://pnrs.is-a.dev/dining",
+  "version": "1.0.0",
   "provider": {
     "name": "TableBespoke Fine Dining & Chef's Tables",
-    "url": "http://localhost"
+    "url": "https://pnrs.is-a.dev/dining"
   },
   "identity": {
     "brand": "TableBespoke Fine Dining & Chef's Tables",
@@ -117,13 +117,13 @@
     "networks": [
       "tablebespoke_concierge"
     ],
-    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+    "actionBridgeUrl": "https://pnrs.is-a.dev/dining/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "http://localhost/bridge/action-bridge.html"
+      "endpoint": "https://pnrs.is-a.dev/dining/bridge/action-bridge.html"
     }
   ],
   "authentication": {

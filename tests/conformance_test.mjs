@@ -214,9 +214,15 @@ async function testActions() {
   assert(fullDirectory.results.some(r => r.id === "luggagefly"), "Discovery directory resolves LuggageFly node");
   assert(fullDirectory.results.some(r => r.id === "travelshield"), "Discovery directory resolves TravelShield node");
 
-  // Test dynamic arrival buffer engine for arbitrary flight times
+  // Test dynamic arrival buffer engine for arbitrary flight times & meridiem boundary crossing
   const customQuote = await quoteTool.execute({ pickup_time: "2:15 PM", flight_number: "DL 1204" });
   assert(customQuote.calculated_pickup_time.includes("2:45 PM"), "CityGlide computes dynamic buffer for non-4:30 PM flights (2:15 PM -> 2:45 PM)");
+
+  const noonFlipQuote = await quoteTool.execute({ pickup_time: "11:45 AM", flight_number: "UA 101" });
+  assert(noonFlipQuote.calculated_pickup_time.includes("12:15 PM"), "CityGlide computes dynamic buffer flipping AM to PM across noon boundary (11:45 AM -> 12:15 PM)");
+
+  const midnightFlipQuote = await quoteTool.execute({ pickup_time: "11:45 PM", flight_number: "UA 102" });
+  assert(midnightFlipQuote.calculated_pickup_time.includes("12:15 AM"), "CityGlide computes dynamic buffer flipping PM to AM across midnight boundary (11:45 PM -> 12:15 AM)");
 
   // Test multi-hub fleet filtering
   const seaFleet = await fleetTool.execute({ hub: "SEA" });

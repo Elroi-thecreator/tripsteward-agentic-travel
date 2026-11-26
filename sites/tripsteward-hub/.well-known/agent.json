@@ -2,11 +2,11 @@
   "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "HarborView Hotel & TripSteward Concierge",
   "description": "",
-  "url": "http://localhost",
+  "url": "https://pnrs.is-a.dev/tripsteward",
   "version": "0.3.0",
   "provider": {
     "name": "HarborView Hotel & TripSteward Concierge",
-    "url": "http://localhost"
+    "url": "https://pnrs.is-a.dev/tripsteward"
   },
   "identity": {
     "brand": "HarborView Hotel & TripSteward Concierge",
@@ -191,13 +191,13 @@
     "networks": [
       "tripsteward_concierge"
     ],
-    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+    "actionBridgeUrl": "https://pnrs.is-a.dev/tripsteward/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "http://localhost/bridge/action-bridge.html"
+      "endpoint": "https://pnrs.is-a.dev/tripsteward/bridge/action-bridge.html"
     }
   ],
   "authentication": {

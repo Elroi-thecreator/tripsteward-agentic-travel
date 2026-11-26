@@ -633,7 +633,13 @@ export class AgentSwarm {
                 }
               } else if (node && node._bridgeClient && typeof node._bridgeClient.execute === "function") {
                 try {
-                  result = await node._bridgeClient.execute(rawName, args, { signal });
+                  const isIrreversible = (toolDef && typeof toolDef === "object" && toolDef.effect === "irreversible") ||
+                                         (toolDef && typeof toolDef === "object" && toolDef.category === "booking");
+                  const execOpts = { signal };
+                  if (isIrreversible) {
+                    execOpts.requirePopup = true;
+                  }
+                  result = await node._bridgeClient.execute(rawName, args, execOpts);
                 } catch (err) {
                   result = { ok: false, error: err.message };
                 }

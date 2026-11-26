@@ -13,7 +13,7 @@ version: "1.3.0"
 All projects, nodes, and federated agent services in this repository and the broader ecosystem should use the extracted, reusable `open-agentic-web` npm package for conformance verification, site action definition, cross-origin bridging, and dynamic federation:
 
 1. **Package Scope & Architecture**:
-   - Location: `packages/open-agentic-web` (v1.1.3)
+   - Location: `packages/open-agentic-web` (v1.1.4)
    - Zero external runtime dependencies: Built using standard Node.js built-ins (`node:fs`, `node:path`, `node:http`) and browser Web APIs (`MessageChannel`, `postMessage`, `fetch`, `AbortSignal`).
    - TypeScript definitions: Fully typed with `src/index.d.ts` exported via `"types"`.
    - Module Exports:
@@ -26,7 +26,7 @@ All projects, nodes, and federated agent services in this repository and the bro
    - `federation <hub> [peers...] [--json]`: Verifies mesh integrity, peer links, and cross-site compatibility, printing granular link-by-link pass/fail diagnostics.
    - `dev [dir] [--port 3000]`: Boots a zero-dependency local static server with path-traversal containment, CORS headers, and an interactive browser test playground at `/playground` to test site actions and bridge handshakes before deployment.
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) with fully hydrated parameter schemas dynamically imported from local `site-actions.js`.
-   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.3`).
+   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.4`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
 3. **Continuous Conformance & Automated Publishing**:
    - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite.

@@ -4,7 +4,7 @@
 > **Devpost Challenge:** [Open Agentic Web Challenge](https://cognizant-agenticweb.devpost.com/)  
 > **Hosted by:** Cognizant AI Lab, Mozilla (Otari), MIT Media Lab (Project NANDA), AWS, and UT Austin  
 > **Specification:** [Worldwide Agentic Web MVP Profile 0.3](https://github.com/cognizant-ai-labs/agentic-web/blob/main/docs/worldwide_agentic_web_mvp_spec.md)  
-> **Developer SDK (npm):** [open-agentic-web (v1.1.3)](https://www.npmjs.com/package/open-agentic-web)  
+> **Developer SDK (npm):** [open-agentic-web (v1.1.4)](https://www.npmjs.com/package/open-agentic-web)  
 > **Primary Live Concierge:** [https://pnrs.is-a.dev/tripsteward/](https://pnrs.is-a.dev/tripsteward/)  
 > **CityGlide Transfers Node:** [https://pnrs.is-a.dev/rides/](https://pnrs.is-a.dev/rides/)  
 > **MetroPass Experiences Node:** [https://pnrs.is-a.dev/experiences/](https://pnrs.is-a.dev/experiences/)  

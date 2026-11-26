@@ -206,62 +206,51 @@ export class TripStewardVault {
     // Check if in catalog
     const catalogEntry = this.catalogAgents.find(a => a.id === agentData.id || (nodeUrl && a.url.includes(nodeUrl)));
 
-    if (catalogEntry) {
-      agent = { ...catalogEntry, status: "CONNECTED" };
-    } else if (nodeUrl) {
-      // Validate by attempting to fetch manifest
+    // Attempt manifest verification if fetch is available
+    let manifest = null;
+    let fetchError = null;
+    if (typeof fetch === "function" && nodeUrl) {
       try {
         let manifestUrl = nodeUrl.replace(/\/$/, "");
         if (!manifestUrl.endsWith("agent-manifest.json")) {
           manifestUrl = manifestUrl.replace(/\/[^/]+$/, "") + "/agent-manifest.json";
         }
-        if (typeof fetch === "function") {
-          const resp = await fetch(manifestUrl);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const manifest = await resp.json();
-          const cleanName = (manifest.brand || manifest.name || agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-          agent = {
-            id: `custom-${cleanName}`,
-            name: manifest.brand || manifest.name || agentData.name || "Custom Node",
-            role: manifest.networks?.[0]?.front_man || "specialist_agent",
-            front_man: manifest.networks?.[0]?.front_man || "specialist_agent",
-            url: nodeUrl,
-            tools: manifest.actions?.agentTools || agentData.tools || ["query_service", "book_direct"],
-            category: agentData.category || "Specialist Node",
-            description: manifest.description || `External agentic node dynamically linked from ${nodeUrl}`,
-            status: "CONNECTED",
-            icon: "🔌"
-          };
+        const resp = await fetch(manifestUrl, { signal: AbortSignal.timeout(3000) });
+        if (resp.ok) {
+          manifest = await resp.json();
         } else {
-          agent = {
-            id: `custom-${(agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-            name: agentData.name || "Custom Agentic Web Node",
-            role: agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
-            front_man: agentData.front_man || "service_specialist",
-            url: nodeUrl,
-            tools: agentData.tools || ["query_service", "book_direct"],
-            category: agentData.category || "Custom Service",
-            description: `External agentic node dynamically linked from ${nodeUrl}`,
-            status: "CONNECTED",
-            icon: "🔌"
-          };
+          fetchError = `HTTP ${resp.status}`;
         }
-      } catch (err) {
-        // Fallback to registering with declared metadata if offline or mock URL in tests
-        const cleanName = (agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        agent = {
-          id: `custom-${cleanName}`,
-          name: agentData.name || "Custom Agentic Web Node",
-          role: agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
-          front_man: agentData.front_man || "service_specialist",
-          url: nodeUrl,
-          tools: agentData.tools || ["query_service", "book_direct"],
-          category: agentData.category || "Custom Service",
-          description: `External agentic node dynamically linked from ${nodeUrl}`,
-          status: "CONNECTED",
-          icon: "🔌"
-        };
+      } catch (e) {
+        fetchError = e.message;
       }
+    }
+
+    if (catalogEntry) {
+      const is404 = fetchError && fetchError.includes("404");
+      agent = {
+        ...catalogEntry,
+        status: is404 ? "UNREACHABLE (404)" : "CONNECTED"
+      };
+      if (manifest) {
+        agent.tools = manifest.actions?.agentTools || agent.tools;
+        if (manifest.brand) agent.name = manifest.brand;
+      }
+    } else if (nodeUrl) {
+      const is404 = fetchError && fetchError.includes("404");
+      const cleanName = (manifest?.brand || manifest?.name || agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      agent = {
+        id: `custom-${cleanName}`,
+        name: manifest?.brand || manifest?.name || agentData.name || (is404 ? "Unreachable Node" : "Custom Agentic Web Node"),
+        role: manifest?.networks?.[0]?.front_man || agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
+        front_man: manifest?.networks?.[0]?.front_man || agentData.front_man || "service_specialist",
+        url: nodeUrl,
+        tools: manifest?.actions?.agentTools || agentData.tools || (is404 ? [] : ["query_service", "book_direct"]),
+        category: agentData.category || "Custom Service",
+        description: manifest?.description || `External agentic node dynamically linked from ${nodeUrl}`,
+        status: is404 ? "UNREACHABLE (404)" : "CONNECTED",
+        icon: is404 ? "⚠️" : "🔌"
+      };
     } else {
       agent = {
         id: `custom-${Date.now()}`,
@@ -810,7 +799,7 @@ export class TripStewardApp {
     }).join("");
   }
 
-  static bookDynamicSpecialist(agentId) {
+  static async bookDynamicSpecialist(agentId) {
     const agent = TripStewardApp.vault.registeredAgents.find(a => a.id === agentId);
     if (!agent) return;
 
@@ -822,14 +811,54 @@ export class TripStewardApp {
 
     let defaultPrice = 50.00;
     let title = `${agent.name} Specialist Reservation`;
-    if (agentId === "tablebespoke") { defaultPrice = 210.00; title = "TableBespoke Atelier Crenn Tasting Table"; }
-    else if (agentId === "alpinetrail") { defaultPrice = 85.00; title = "AlpineTrail Wilderness Permit & Guide Pass"; }
-    else if (agentId === "luggagefly") { defaultPrice = 70.00; title = "LuggageFly Airport Curbside Courier (2 Bags)"; }
-    else if (agentId === "travelshield") { defaultPrice = 19.00; title = "TravelShield Flight Delay Parametric Policy"; }
+    let actionName = "book_direct";
+    let actionPayload = {};
+
+    if (agentId === "tablebespoke") {
+      defaultPrice = 210.00;
+      title = "TableBespoke Atelier Crenn Tasting Table";
+      actionName = "reserve_dining_table";
+      actionPayload = { restaurant_name: "Atelier Crenn", party_size: 2, seating_date: "2026-11-28", time_slot: "7:30 PM", dietary_notes: "None" };
+    } else if (agentId === "alpinetrail") {
+      defaultPrice = 85.00;
+      title = "AlpineTrail Wilderness Permit & Guide Pass";
+      actionName = "book_expedition_pass";
+      actionPayload = { trail_id: "muir-woods-coastal", party_size: 2, expedition_date: "2026-11-29" };
+    } else if (agentId === "luggagefly") {
+      defaultPrice = 70.00;
+      title = "LuggageFly Airport Curbside Courier (2 Bags)";
+      actionName = "schedule_baggage_transfer";
+      actionPayload = { bags_count: 2, flight_number: "UA 482", hotel_address: "HarborView Hotel, 450 Waterfront Blvd", delivery_priority: "express" };
+    } else if (agentId === "travelshield") {
+      defaultPrice = 19.00;
+      title = "TravelShield Flight Delay Parametric Policy";
+      actionName = "quote_travel_policy";
+      actionPayload = { flight_number: "UA 482", coverage_type: "delay_parametric", trip_duration_days: 3 };
+    }
+
+    let bookingRef = `EXT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Invoke peer node's action bridge when running in a live browser
+    if (typeof window !== "undefined" && agent.url) {
+      try {
+        const bridgeUrl = `${agent.url.replace(/\/[^/]+$/, "")}/bridge/action-bridge.html`;
+        if (typeof openAgenticWeb !== "undefined" && typeof openAgenticWeb.createActionBridgeClient === "function") {
+          const client = openAgenticWeb.createActionBridgeClient({ bridgeUrl, brand: agent.name });
+          const res = await client.execute(actionName, actionPayload, { timeoutMs: 3000 }).catch(() => null);
+          if (res && res.ok) {
+            bookingRef = res.booking_id || res.pass_id || res.confirmation_id || bookingRef;
+            if (res.total_usd) defaultPrice = res.total_usd;
+          }
+          client.dispose();
+        }
+      } catch (err) {
+        console.warn("Peer bridge invocation fallback:", err);
+      }
+    }
 
     const booking = {
       agent_id: agentId,
-      ref_id: `EXT-${Math.floor(1000 + Math.random() * 9000)}`,
+      ref_id: bookingRef,
       title: title,
       total_cost_usd: defaultPrice,
       savings_usd: Math.round(defaultPrice * 0.25),
@@ -1109,9 +1138,9 @@ export class TripStewardApp {
         container.innerHTML = `<div class="empty-state">No direct provider reservations committed yet.</div>`;
       } else {
         container.innerHTML = `
-          ${hotel ? `<div>🏨 Hotel: ${hotel.room_tier} (#${hotel.id})</div>` : ''}
-          ${transfer ? `<div>🚗 Ride: ${transfer.vehicle_class} (#${transfer.id})</div>` : ''}
-          ${exp ? `<div>⛵ Exp: ${exp.experience_name} (#${exp.id})</div>` : ''}
+          ${hotel ? `<div>🏨 Hotel: ${escapeHtml(hotel.room_tier)} (#${escapeHtml(hotel.id)})</div>` : ''}
+          ${transfer ? `<div>🚗 Ride: ${escapeHtml(transfer.vehicle_class)} (#${escapeHtml(transfer.id)})</div>` : ''}
+          ${exp ? `<div>⛵ Exp: ${escapeHtml(exp.experience_name)} (#${escapeHtml(exp.id)})</div>` : ''}
         `;
       }
     }

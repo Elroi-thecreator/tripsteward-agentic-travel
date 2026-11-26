@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createActionRegistry, toA2AAgentCard } from "../src/actions.js";
 import { validateFederation, validateManifest, validateNetwork, validateNode } from "../src/validator.js";
@@ -15,7 +15,7 @@ import { validateFederation, validateManifest, validateNetwork, validateNode } f
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.1.3";
+let VERSION = "1.1.4";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;
@@ -506,7 +506,7 @@ function runDev() {
     const candidatePath = urlPath === "/" ? "index.html" : (urlPath.startsWith("/") ? urlPath.slice(1) : urlPath);
     let filePath = resolve(safeTargetDir, candidatePath);
 
-    if (!filePath.startsWith(safeTargetDir)) {
+    if (!filePath.startsWith(safeTargetDir + sep) && filePath !== safeTargetDir) {
       res.writeHead(403, { "Content-Type": "text/plain" });
       res.end("403 Forbidden: Path traversal detected.");
       return;
@@ -592,10 +592,26 @@ function runDev() {
 }
 
 async function runA2A() {
-  const nonFlagArgs = args.slice(1).filter(a => a !== "--out" && !a.startsWith("http"));
-  const targetDir = resolve(nonFlagArgs[0] || ".");
+  let specifiedUrl = null;
+  const urlIdx = args.indexOf("--url");
+  if (urlIdx !== -1 && args[urlIdx + 1]) {
+    specifiedUrl = args[urlIdx + 1];
+  }
+
   const outIndex = args.indexOf("--out");
   const outPath = outIndex !== -1 && args[outIndex + 1] ? resolve(args[outIndex + 1]) : null;
+
+  const nonFlagArgs = args.slice(1).filter((a, i, arr) => {
+    if (a === "--out" || arr[i - 1] === "--out") return false;
+    if (a === "--url" || arr[i - 1] === "--url") return false;
+    return true;
+  });
+
+  const targetDir = resolve(nonFlagArgs.find(a => !a.startsWith("http")) || ".");
+  if (!specifiedUrl) {
+    const urlArg = nonFlagArgs.find(a => a.startsWith("http"));
+    if (urlArg) specifiedUrl = urlArg;
+  }
 
   const manifestPath = join(targetDir, "agent-manifest.json");
   if (!existsSync(manifestPath)) {
@@ -604,6 +620,27 @@ async function runA2A() {
   }
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+
+  // Minimal safe DOM and browser globals shim so dynamic imports of scripts/site-actions do not fail on document.addEventListener
+  if (typeof globalThis.document === "undefined") {
+    globalThis.document = {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      createElement: () => ({ setAttribute: () => {}, appendChild: () => {}, style: {} }),
+      body: { appendChild: () => {} }
+    };
+  }
+  if (typeof globalThis.window === "undefined") {
+    globalThis.window = {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      location: { href: "http://localhost", origin: "http://localhost" },
+      localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+    };
+  }
 
   // Hydrate action schemas and effects from site-actions if available
   let registry = null;
@@ -619,15 +656,58 @@ async function runA2A() {
       } else if (actionsModule.SiteActions && typeof actionsModule.SiteActions.registerActions === "function") {
         await actionsModule.SiteActions.registerActions(registry);
       }
-    } catch {
-      // Continue with manifest fallback
+    } catch (err) {
+      console.warn(`[oaw a2a] Note: Could not dynamically import ${actionsRelPath} (${err.message}). Using manifest definitions.`);
     }
   }
 
-  const card = toA2AAgentCard(manifest, { registry });
+  // Determine production/canonical base URL
+  let effectiveUrl = specifiedUrl;
+  if (!effectiveUrl && manifest.url && !manifest.url.includes("localhost")) {
+    effectiveUrl = manifest.url;
+  }
+  if (!effectiveUrl) {
+    const agentJsonPaths = [
+      outPath,
+      join(targetDir, ".well-known", "agent.json"),
+      join(targetDir, "agent.json")
+    ].filter(Boolean);
+    for (const p of agentJsonPaths) {
+      if (existsSync(p)) {
+        try {
+          const existing = JSON.parse(readFileSync(p, "utf-8"));
+          if (existing.url && !existing.url.includes("localhost")) {
+            effectiveUrl = existing.url;
+            break;
+          }
+        } catch {}
+      }
+    }
+  }
+  if (!effectiveUrl) {
+    const dirBase = basename(targetDir);
+    const domainMap = {
+      "tripsteward-hub": "https://pnrs.is-a.dev/tripsteward",
+      "cityglide-node": "https://pnrs.is-a.dev/rides",
+      "metropass-node": "https://pnrs.is-a.dev/experiences",
+      "tablebespoke-node": "https://pnrs.is-a.dev/dining",
+      "alpinetrail-node": "https://pnrs.is-a.dev/alpine",
+      "luggagefly-node": "https://pnrs.is-a.dev/luggage",
+      "travelshield-node": "https://pnrs.is-a.dev/insurance"
+    };
+    if (domainMap[dirBase]) {
+      effectiveUrl = domainMap[dirBase];
+    }
+  }
+  if (!effectiveUrl) {
+    effectiveUrl = "http://localhost";
+  }
+
+  const card = toA2AAgentCard(manifest, { registry, url: effectiveUrl, baseUrl: effectiveUrl });
   const jsonStr = JSON.stringify(card, null, 2);
 
   if (outPath) {
+    mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, jsonStr, "utf-8");
     console.log(`${colors.green}Generated A2A Agent Card written to:${colors.reset} ${outPath}`);
   } else {

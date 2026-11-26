@@ -2,11 +2,11 @@
   "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "MetroPass Experiences & City Curations",
   "description": "",
-  "url": "http://localhost",
+  "url": "https://pnrs.is-a.dev/experiences",
   "version": "0.3.0",
   "provider": {
     "name": "MetroPass Experiences & City Curations",
-    "url": "http://localhost"
+    "url": "https://pnrs.is-a.dev/experiences"
   },
   "identity": {
     "brand": "MetroPass Experiences & City Curations",
@@ -17,30 +17,69 @@
     {
       "id": "search_experiences",
       "name": "search_experiences",
-      "description": "Execute search_experiences on MetroPass Experiences & City Curations",
+      "description": "Search curated city experiences, sunset cruises, museum VIP passes, and culinary tours.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "City name (e.g. 'San Francisco', 'Seattle', 'Austin')."
+          },
+          "category": {
+            "type": "string",
+            "description": "Category filter (e.g. 'sailing', 'museum', 'culinary', 'adventure', 'all')."
+          },
+          "max_price": {
+            "type": "number",
+            "description": "Maximum budget per ticket in USD."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
       },
       "effect": "read"
     },
     {
       "id": "book_experience_pass",
       "name": "book_experience_pass",
-      "description": "Execute book_experience_pass on MetroPass Experiences & City Curations",
+      "description": "Issue and reserve verified digital admission tickets or activity passes with direct provider confirmation.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "experience_id": {
+            "type": "string",
+            "description": "Catalog identifier (e.g. 'EXP-SF-01')."
+          },
+          "attendee_name": {
+            "type": "string",
+            "description": "Lead attendee full name."
+          },
+          "date": {
+            "type": "string",
+            "description": "Activity date (e.g. 'Saturday, Nov 28')."
+          },
+          "tickets": {
+            "type": "integer",
+            "description": "Number of admission passes requested."
+          }
+        },
+        "required": [
+          "experience_id",
+          "attendee_name"
+        ],
+        "additionalProperties": false
       },
-      "effect": "read"
+      "effect": "irreversible"
     },
     {
       "id": "get_available_catalog",
       "name": "get_available_catalog",
-      "description": "Execute get_available_catalog on MetroPass Experiences & City Curations",
+      "description": "Query full verified activity catalog and seasonal city highlights.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
       },
       "effect": "read"
     }
@@ -56,13 +95,13 @@
     "networks": [
       "metropass_experiences"
     ],
-    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+    "actionBridgeUrl": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "http://localhost/bridge/action-bridge.html"
+      "endpoint": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
     }
   ],
   "authentication": {

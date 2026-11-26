@@ -291,6 +291,17 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
     assert.strictEqual(card.capabilities.pushNotifications, false);
   });
 
+  it("cleans and extracts version correctly in toA2AAgentCard from specification URL", () => {
+    const registry = createActionRegistry();
+    const manifest = {
+      name: "tablebespoke_concierge",
+      specification: "https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json"
+    };
+    const card = registry.toA2AAgentCard(manifest, { url: "https://pnrs.is-a.dev/dining" });
+    assert.strictEqual(card.version, "0.3.0");
+    assert.ok(!card.version.includes("json"));
+  });
+
   it("announces readiness to windowObj.opener in setupActionBridge", async () => {
     const registry = createActionRegistry();
     registry.register(

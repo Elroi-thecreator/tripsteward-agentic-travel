@@ -10,20 +10,24 @@ version: "1.2.0"
 ---
 
 ## Rule
-TripSteward / CuraPilot is deployed on the production VM without disturbing any pre-existing workloads (such as Holy Bible FastAPI on port 8000 or OpenHands Gateway on port 8080/8443):
+TripSteward is deployed on the production VM without disturbing any pre-existing workloads (such as Holy Bible FastAPI on port 8000 or OpenHands Gateway on port 8080/8443):
 
 1. **Local Node Background Services**:
-   - Managed via systemd service `curapilot.service`.
+   - Managed via systemd service `tripsteward.service`.
    - Runs `node scripts/serve_vm.mjs` under the `ubuntu` system user.
-   - Binds the 3 static Open Agentic Web sites to loopback-only ports:
+   - Binds the 7 static Open Agentic Web sites to loopback-only ports:
      - `127.0.0.1:8880`: `sites/tripsteward-hub` (Hub & Chief Concierge)
      - `127.0.0.1:8881`: `sites/cityglide-node` (CityGlide Transfers Node)
      - `127.0.0.1:8882`: `sites/metropass-node` (MetroPass Experiences Node)
+     - `127.0.0.1:8883`: `sites/tablebespoke-node` (TableBespoke Dining Node)
+     - `127.0.0.1:8884`: `sites/alpinetrail-node` (AlpineTrail Expeditions Node)
+     - `127.0.0.1:8885`: `sites/luggagefly-node` (LuggageFly Logistics Node)
+     - `127.0.0.1:8886`: `sites/travelshield-node` (TravelShield Protection Node)
 2. **Nginx Reverse Proxy & Multi-Domain SSL Integration**:
    - Uses `/etc/nginx/snippets/curapilot.conf` included inside `/etc/nginx/sites-available/default`.
    - Dedicated server blocks:
-     - `server_name pnrs.is-a.dev`: Serves FastAPI Holy Bible at root `/`, and proxies `/tripsteward/`, `/rides/`, and `/experiences/` to the local federated nodes.
-     - `server_name elroi.js.org`: Custom JS.ORG domain dedicated to this app. Automatically redirects root `/` (301) to `/tripsteward/`, and serves all federated agent nodes (`/tripsteward/`, `/rides/`, `/experiences/`).
+     - `server_name pnrs.is-a.dev`: Serves FastAPI Holy Bible at root `/` (port 8000), and proxies `/tripsteward/`, `/rides/`, `/experiences/`, `/dining/`, `/alpine/`, `/luggage/`, and `/insurance/` to the local federated nodes.
+     - `server_name elroi.js.org`: Custom JS.ORG domain dedicated to this app. Automatically redirects root `/` (301) to `/tripsteward/`, and serves all federated agent nodes (`/tripsteward/`, `/rides/`, `/experiences/`, `/dining/`, `/alpine/`, `/luggage/`, `/insurance/`).
      - Port 80 HTTP server block cleanly redirects (301) all traffic for both `pnrs.is-a.dev` and `elroi.js.org` to `https://$host$request_uri`.
    - Enforces `proxy_hide_header Access-Control-Allow-Origin;` before `add_header Access-Control-Allow-Origin * always;` across all proxied locations to guarantee modern browsers receive exactly one CORS header without duplicates.
    - Static server runners (`scripts/serve_site.mjs`) include `/.well-known/agent.json` in `publicPaths()` alongside `agent-manifest.json` and `links.json` for A2A compatibility.

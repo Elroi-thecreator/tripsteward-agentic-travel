@@ -352,6 +352,8 @@ export class MetroPassApp {
 if (typeof window !== "undefined") {
   window.MetroPassApp = MetroPassApp;
 }
-document.addEventListener("DOMContentLoaded", () => {
-  MetroPassApp.init();
-});
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", () => {
+    MetroPassApp.init();
+  });
+}

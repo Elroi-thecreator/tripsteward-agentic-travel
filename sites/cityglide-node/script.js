@@ -87,27 +87,34 @@ export class CityGlideApp {
 
       let hours = parseInt(match[1], 10);
       let minutes = parseInt(match[2], 10);
+      const hasMeridiem = !!match[3];
       const meridiem = match[3] ? match[3].toUpperCase() : null;
 
       // Determine buffer: domestic 30m, international 45m
       const isInternational = flightNumber && (flightNumber.startsWith("BA") || flightNumber.startsWith("LH") || flightNumber.startsWith("AF") || flightNumber.startsWith("JL") || flightNumber.startsWith("CX") || flightNumber.startsWith("SQ"));
       const bufferMinutes = isInternational ? 45 : 30;
 
-      minutes += bufferMinutes;
-      if (minutes >= 60) {
-        hours += Math.floor(minutes / 60);
-        minutes = minutes % 60;
+      // Convert to 24-hour scale for proper arithmetic across noon/midnight
+      if (hasMeridiem) {
+        if (meridiem === "PM" && hours < 12) {
+          hours += 12;
+        } else if (meridiem === "AM" && hours === 12) {
+          hours = 0;
+        }
       }
+
+      minutes += bufferMinutes;
+      hours += Math.floor(minutes / 60);
+      minutes = minutes % 60;
+      hours = hours % 24;
 
       const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
       let formattedTime = "";
-      if (meridiem) {
-        if (hours > 12) {
-          hours -= 12;
-        } else if (hours === 0) {
-          hours = 12;
-        }
-        formattedTime = `${hours}:${formattedMinutes} ${meridiem}`;
+      if (hasMeridiem) {
+        const outMeridiem = hours >= 12 ? "PM" : "AM";
+        let displayHours = hours % 12;
+        if (displayHours === 0) displayHours = 12;
+        formattedTime = `${displayHours}:${formattedMinutes} ${outMeridiem}`;
       } else {
         formattedTime = `${hours}:${formattedMinutes}`;
       }
@@ -321,6 +328,8 @@ export class CityGlideApp {
 if (typeof window !== "undefined") {
   window.CityGlideApp = CityGlideApp;
 }
-document.addEventListener("DOMContentLoaded", () => {
-  CityGlideApp.init();
-});
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", () => {
+    CityGlideApp.init();
+  });
+}

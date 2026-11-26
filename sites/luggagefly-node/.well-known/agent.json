@@ -1,0 +1,93 @@
+{
+  "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
+  "name": "LuggageFly Logistics",
+  "description": "LuggageFly: Airport curbside to hotel direct luggage courier on the Open Agentic Web",
+  "url": "https://pnrs.is-a.dev/luggage",
+  "version": "1.0.0",
+  "provider": {
+    "name": "LuggageFly Logistics",
+    "url": "https://pnrs.is-a.dev/luggage"
+  },
+  "identity": {
+    "brand": "LuggageFly Logistics",
+    "frontMan": "courier_dispatcher",
+    "category": "Concierge"
+  },
+  "skills": [
+    {
+      "id": "schedule_baggage_transfer",
+      "name": "schedule_baggage_transfer",
+      "description": "Dispatch courier to collect luggage at carousel and deliver directly to hotel room.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "passenger_name": {
+            "type": "string",
+            "description": "Traveler full name."
+          },
+          "hotel_address": {
+            "type": "string",
+            "description": "Destination hotel name and address."
+          },
+          "flight_number": {
+            "type": "string",
+            "description": "Flight number for baggage claim synchronization."
+          },
+          "bags_count": {
+            "type": "integer",
+            "description": "Number of bags."
+          }
+        },
+        "required": [
+          "hotel_address"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "irreversible"
+    },
+    {
+      "id": "track_luggage",
+      "name": "track_luggage",
+      "description": "Query luggage courier availability, pickup zones, and delivery estimates.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "airport_code": {
+            "type": "string",
+            "description": "Airport code (e.g. 'SFO', 'OAK', 'SJC')."
+          },
+          "bags_count": {
+            "type": "integer",
+            "description": "Number of bags."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "schedule_baggage_transfer",
+      "track_luggage"
+    ],
+    "networks": [
+      "luggagefly_courier"
+    ],
+    "actionBridgeUrl": "https://pnrs.is-a.dev/luggage/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "https://pnrs.is-a.dev/luggage/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

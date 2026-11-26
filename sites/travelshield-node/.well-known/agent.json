@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
+  "name": "TravelShield Protection",
+  "description": "TravelShield: Autonomous delay and flight interruption parametric insurance on the Open Agentic Web",
+  "url": "https://pnrs.is-a.dev/insurance",
+  "version": "1.0.0",
+  "provider": {
+    "name": "TravelShield Protection",
+    "url": "https://pnrs.is-a.dev/insurance"
+  },
+  "identity": {
+    "brand": "TravelShield Protection",
+    "frontMan": "insurance_underwriter",
+    "category": "Concierge"
+  },
+  "skills": [
+    {
+      "id": "quote_travel_policy",
+      "name": "quote_travel_policy",
+      "description": "Calculate instant parametric flight delay coverage with direct payout.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "flight_number": {
+            "type": "string",
+            "description": "Flight number (e.g. 'UA 482')."
+          },
+          "destination": {
+            "type": "string",
+            "description": "Destination city or airport."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    {
+      "id": "file_instant_claim",
+      "name": "file_instant_claim",
+      "description": "Bind and issue parametric flight delay guarantee policy.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "traveler_name": {
+            "type": "string",
+            "description": "Name of insured traveler."
+          },
+          "flight_number": {
+            "type": "string",
+            "description": "Flight number to monitor."
+          },
+          "payout_destination": {
+            "type": "string",
+            "description": "Direct payout destination or wallet."
+          }
+        },
+        "required": [
+          "flight_number"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "irreversible"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "quote_travel_policy",
+      "file_instant_claim"
+    ],
+    "networks": [
+      "travelshield_underwriter"
+    ],
+    "actionBridgeUrl": "https://pnrs.is-a.dev/insurance/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "https://pnrs.is-a.dev/insurance/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

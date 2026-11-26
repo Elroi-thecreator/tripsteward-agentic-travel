@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
+  "name": "AlpineTrail Guided Expeditions",
+  "description": "AlpineTrail: Backcountry ski passes, wilderness guides, and mountain equipment on the Open Agentic Web",
+  "url": "https://pnrs.is-a.dev/alpine",
+  "version": "1.0.0",
+  "provider": {
+    "name": "AlpineTrail Guided Expeditions",
+    "url": "https://pnrs.is-a.dev/alpine"
+  },
+  "identity": {
+    "brand": "AlpineTrail Guided Expeditions",
+    "frontMan": "alpine_guide",
+    "category": "Concierge"
+  },
+  "skills": [
+    {
+      "id": "check_trail_conditions",
+      "name": "check_trail_conditions",
+      "description": "Check mountain weather, avalanche forecast, and wilderness pass availability.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": "string",
+            "description": "Target trail, park, or peak area (e.g. 'Mount Tamalpais', 'Lake Tahoe', 'Muir Woods')."
+          },
+          "activity": {
+            "type": "string",
+            "description": "Desired activity: 'hiking', 'skiing', 'backcountry'."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    {
+      "id": "book_expedition_pass",
+      "name": "book_expedition_pass",
+      "description": "Book certified wilderness guide pass and equipment reservation directly.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": "string",
+            "description": "Expedition destination."
+          },
+          "participants": {
+            "type": "integer",
+            "description": "Number of expedition participants."
+          },
+          "date": {
+            "type": "string",
+            "description": "Expedition date."
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "irreversible"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "check_trail_conditions",
+      "book_expedition_pass"
+    ],
+    "networks": [
+      "alpinetrail_guide"
+    ],
+    "actionBridgeUrl": "https://pnrs.is-a.dev/alpine/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "https://pnrs.is-a.dev/alpine/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

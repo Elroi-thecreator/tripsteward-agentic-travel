@@ -2,11 +2,11 @@
   "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "CityGlide Autonomous Fleet & Airport Transfers",
   "description": "",
-  "url": "http://localhost",
+  "url": "https://pnrs.is-a.dev/rides",
   "version": "0.3.0",
   "provider": {
     "name": "CityGlide Autonomous Fleet & Airport Transfers",
-    "url": "http://localhost"
+    "url": "https://pnrs.is-a.dev/rides"
   },
   "identity": {
     "brand": "CityGlide Autonomous Fleet & Airport Transfers",
@@ -17,30 +17,99 @@
     {
       "id": "quote_transfer_service",
       "name": "quote_transfer_service",
-      "description": "Execute quote_transfer_service on CityGlide Autonomous Fleet & Airport Transfers",
+      "description": "Calculate direct airport transfer options, flight delay buffers, and vehicle classes (Executive EV Sedan, Luxury Chauffeur SUV).",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "destination": {
+            "type": "string",
+            "description": "Dropoff location or hotel (e.g. 'HarborView Hotel, 450 Waterfront Blvd')."
+          },
+          "pickup_time": {
+            "type": "string",
+            "description": "Requested time or flight arrival timestamp (e.g. '4:30 PM')."
+          },
+          "flight_number": {
+            "type": "string",
+            "description": "Incoming flight number for automatic landing tracking (e.g. 'UA 482')."
+          },
+          "passengers": {
+            "type": "integer",
+            "description": "Number of passengers needing ground transit."
+          },
+          "airport_code": {
+            "type": "string",
+            "description": "Airport code (e.g. 'SFO', 'SEA', 'AUS')."
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "additionalProperties": false
       },
       "effect": "read"
     },
     {
       "id": "schedule_airport_transfer",
       "name": "schedule_airport_transfer",
-      "description": "Execute schedule_airport_transfer on CityGlide Autonomous Fleet & Airport Transfers",
+      "description": "Dispatch and reserve an airport ground transfer chauffeur with flight delay tracking.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "vehicle_class": {
+            "type": "string",
+            "description": "Selected vehicle class ('Executive EV Sedan' or 'Luxury Chauffeur SUV')."
+          },
+          "passenger_name": {
+            "type": "string",
+            "description": "Lead passenger full name."
+          },
+          "pickup_location": {
+            "type": "string",
+            "description": "Airport terminal or pickup spot (e.g. 'SFO Terminal 2 Curbside')."
+          },
+          "dropoff_location": {
+            "type": "string",
+            "description": "Destination address (e.g. 'HarborView Hotel, 450 Waterfront Blvd')."
+          },
+          "pickup_time": {
+            "type": "string",
+            "description": "Scheduled pickup time (accounting for baggage buffer)."
+          },
+          "flight_number": {
+            "type": "string",
+            "description": "Flight number for live telemetry."
+          },
+          "fare_usd": {
+            "type": "number",
+            "description": "Agreed direct transfer rate in USD."
+          }
+        },
+        "required": [
+          "vehicle_class",
+          "passenger_name",
+          "pickup_location",
+          "dropoff_location",
+          "pickup_time"
+        ],
+        "additionalProperties": false
       },
-      "effect": "read"
+      "effect": "irreversible"
     },
     {
       "id": "get_fleet_status",
       "name": "get_fleet_status",
-      "description": "Execute get_fleet_status on CityGlide Autonomous Fleet & Airport Transfers",
+      "description": "Query current vehicle availability, battery charge levels, and driver readiness at airport hubs.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "hub": {
+            "type": "string",
+            "description": "Airport hub code (e.g. 'SFO', 'SEA', 'AUS')."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
       },
       "effect": "read"
     }
@@ -56,13 +125,13 @@
     "networks": [
       "cityglide_transfer"
     ],
-    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+    "actionBridgeUrl": "https://pnrs.is-a.dev/rides/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "http://localhost/bridge/action-bridge.html"
+      "endpoint": "https://pnrs.is-a.dev/rides/bridge/action-bridge.html"
     }
   ],
   "authentication": {
