@@ -221,9 +221,9 @@ $ npm test
   ✅ PASS: open-agentic-web passed all 122 mesh conformance checks
 
 ========================================================
-Test Summary: 88 passed, 0 failed.
+Test Summary: 104 passed, 0 failed.
 ========================================================
-> open-agentic-web@1.1.2 test (21 passed, 0 failed)
+> open-agentic-web@1.1.6 test (23 passed, 0 failed)
 ```
 
 ---
