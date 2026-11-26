@@ -119,7 +119,8 @@ async function testActions() {
   assert(scheduleResult.driver_assigned.length > 0, "CityGlide assigns professional driver");
   assert(scheduleResult.receipt && scheduleResult.receipt.algorithm === "ES256", "CityGlide issues signed ECDSA P-256 action receipt");
   const cgJwks = JSON.parse(readFileSync(join(rootDir, "sites", "cityglide-node", ".well-known", "jwks.json"), "utf-8"));
-  const cgVerified = await verifyActionReceipt(scheduleResult.receipt, cgJwks.keys[0]);
+  const cgKey = scheduleResult.receipt.publicKeyJwk || cgJwks.keys.find(k => k.kid === scheduleResult.receipt.kid) || cgJwks.keys[0];
+  const cgVerified = await verifyActionReceipt(scheduleResult.receipt, cgKey);
   assert(cgVerified.valid === true, "CityGlide ECDSA receipt passes cryptographic WebCrypto verification");
 
   const fleetTool = CityGlideActions.getFleetStatusAction();
@@ -146,7 +147,8 @@ async function testActions() {
   assert(passResult.total_price_usd === 158, "MetroPass calculates direct total price correctly ($79 x 2 = $158)");
   assert(passResult.receipt && passResult.receipt.algorithm === "ES256", "MetroPass issues signed ECDSA P-256 action receipt");
   const mpJwks = JSON.parse(readFileSync(join(rootDir, "sites", "metropass-node", ".well-known", "jwks.json"), "utf-8"));
-  const mpVerified = await verifyActionReceipt(passResult.receipt, mpJwks.keys[0]);
+  const mpKey = passResult.receipt.publicKeyJwk || mpJwks.keys.find(k => k.kid === passResult.receipt.kid) || mpJwks.keys[0];
+  const mpVerified = await verifyActionReceipt(passResult.receipt, mpKey);
   assert(mpVerified.valid === true, "MetroPass ECDSA receipt passes cryptographic WebCrypto verification");
 
   // Test TripSteward Hub Actions
@@ -170,7 +172,8 @@ async function testActions() {
   assert(hotelRes.total_stay_cost === 378, "TripSteward computes room charges ($189 x 2 = $378)");
   assert(hotelRes.receipt && hotelRes.receipt.algorithm === "ES256", "HarborView issues signed ECDSA P-256 action receipt");
   const hvJwks = JSON.parse(readFileSync(join(rootDir, "sites", "tripsteward-hub", ".well-known", "jwks.json"), "utf-8"));
-  const hvVerified = await verifyActionReceipt(hotelRes.receipt, hvJwks.keys[0]);
+  const hvKey = hotelRes.receipt.publicKeyJwk || hvJwks.keys.find(k => k.kid === hotelRes.receipt.kid) || hvJwks.keys[0];
+  const hvVerified = await verifyActionReceipt(hotelRes.receipt, hvKey);
   assert(hvVerified.valid === true, "HarborView ECDSA receipt passes cryptographic WebCrypto verification");
 
   const bookTransferTool = HubActions.bookAirportTransferAction();
