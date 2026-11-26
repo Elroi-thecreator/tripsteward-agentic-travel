@@ -52,6 +52,6 @@ Autonomous AI agents lack persistent context across sessions and different devel
 - `.cursorrules`
 - `.github/copilot-instructions.md`
 - `PROD-001`: Open Agentic Web Challenge Specification & Submission Protocol
-- `ARCH-001`: CuraPilot Zero-Leakage Multi-Specialist Consensus Architecture
+- `ARCH-002`: TripSteward Autonomous Federated Travel & Cross-Site Booking Architecture
 - `DEV-001`: In-Browser Runtime, Site Actions & Otari BYOK Standards
 - `DEV-002`: Hackathon Dependencies, Prerequisites & Submission Lifecycle

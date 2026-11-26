@@ -3,8 +3,8 @@
 system_name: "tripsteward-agentic-travel"
 repository_root: "."
 description: "TripSteward: Autonomous Federated Travel, Hotel & City Mobility Concierge — Open Agentic Web Cluster"
-knowledge_units_count: 7
-last_updated: "2026-11-25"
+knowledge_units_count: 6
+last_updated: "2026-11-26"
 
 knowledge_units:
   product:
@@ -14,11 +14,6 @@ knowledge_units:
       path: "knowledge/product/PROD-001-challenge-spec-and-rules.md"
       status: "APPROVED"
   architecture:
-    - id: "ARCH-001"
-      title: "CuraPilot Zero-Leakage Multi-Specialist Consensus Architecture"
-      file: "knowledge/architecture/ARCH-001-curapilot-consensus-architecture.md"
-      path: "knowledge/architecture/ARCH-001-curapilot-consensus-architecture.md"
-      status: "APPROVED"
     - id: "ARCH-002"
       title: "TripSteward Autonomous Federated Travel & Cross-Site Booking Architecture"
       file: "knowledge/architecture/ARCH-002-tripsteward-federated-architecture.md"

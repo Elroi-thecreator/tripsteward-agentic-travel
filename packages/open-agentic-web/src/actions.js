@@ -191,7 +191,7 @@ export function defineAction(definition) {
     throw new Error(`Action '${name}' must declare a descriptive 'description'.`);
   }
 
-  const validEffects = ["read", "irreversible", "undoable"];
+  const validEffects = ["read", "write", "irreversible", "undoable"];
   if (!validEffects.includes(effect)) {
     throw new Error(`Action '${name}' declares invalid effect '${effect}'. Must be one of: ${validEffects.join(", ")}.`);
   }

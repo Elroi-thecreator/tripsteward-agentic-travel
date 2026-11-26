@@ -2,6 +2,10 @@
 // Exposes fleet status, transfer quotes, and airport ride scheduling for the Open Agentic Web.
 import { CityGlideApp } from "./script.js";
 
+export function registerActions(actions) {
+  return SiteActions.registerActions(actions);
+}
+
 export class SiteActions {
   static registerActions(actions) {
     actions.register(SiteActions.quoteTransferServiceAction());
@@ -14,6 +18,8 @@ export class SiteActions {
       name: "quote_transfer_service",
       description: "Calculate direct airport transfer options, flight delay buffers, and vehicle classes (Executive EV Sedan, Luxury Chauffeur SUV).",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -52,6 +58,8 @@ export class SiteActions {
       name: "schedule_airport_transfer",
       description: "Dispatch and reserve an airport ground transfer chauffeur with flight delay tracking.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -98,6 +106,8 @@ export class SiteActions {
       name: "get_fleet_status",
       description: "Query current vehicle availability, battery charge levels, and driver readiness at airport hubs.",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {

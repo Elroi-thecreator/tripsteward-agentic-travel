@@ -1,4 +1,15 @@
 // MetroPass Experiences & City Curations UI & Ticketing Vault
+
+function escapeHtml(str) {
+  if (typeof str !== "string") return String(str ?? "");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export class MetroPassApp {
   static vault = {
     catalog: [
@@ -160,15 +171,15 @@ export class MetroPassApp {
     list.innerHTML = MetroPassApp.vault.bookings.map(b => `
       <div class="pass-card">
         <div class="pass-header">
-          <span class="badge badge-amber">${b.status}</span>
-          <span class="pass-code">${b.pass_code}</span>
+          <span class="badge badge-amber">${escapeHtml(b.status)}</span>
+          <span class="pass-code">${escapeHtml(b.pass_code)}</span>
         </div>
         <div class="pass-body">
-          <h4>${b.title}</h4>
-          <div class="pass-row"><strong>Guest:</strong> <span>${b.attendee_name}</span></div>
-          <div class="pass-row"><strong>Date:</strong> <span>${b.date} (${b.scheduled_slot})</span></div>
-          <div class="pass-row"><strong>Tickets:</strong> <span>${b.tickets} VIP Admission Passes</span></div>
-          <div class="pass-row"><strong>Total:</strong> <span class="price-pill">$${b.total_price_usd}.00 USD (Direct Rate)</span></div>
+          <h4>${escapeHtml(b.title)}</h4>
+          <div class="pass-row"><strong>Guest:</strong> <span>${escapeHtml(b.attendee_name)}</span></div>
+          <div class="pass-row"><strong>Date:</strong> <span>${escapeHtml(b.date)} (${escapeHtml(b.scheduled_slot)})</span></div>
+          <div class="pass-row"><strong>Tickets:</strong> <span>${escapeHtml(String(b.tickets))} VIP Admission Passes</span></div>
+          <div class="pass-row"><strong>Total:</strong> <span class="price-pill">$${Number(b.total_price_usd || 0).toFixed(2)} USD (Direct Rate)</span></div>
           <div class="pass-qr-mock">
             <span class="qr-icon">📱</span> Digital Pass QR Verified • Instant Pier/Door Scannable
           </div>
@@ -184,17 +195,17 @@ export class MetroPassApp {
     grid.innerHTML = MetroPassApp.vault.catalog.map(exp => `
       <div class="exp-card">
         <div class="exp-header">
-          <span class="badge badge-category">${exp.category.toUpperCase()}</span>
-          <span class="city-tag">${exp.city}</span>
+          <span class="badge badge-category">${escapeHtml(exp.category.toUpperCase())}</span>
+          <span class="city-tag">${escapeHtml(exp.city)}</span>
         </div>
-        <h3>${exp.title}</h3>
-        <p class="exp-desc">${exp.description}</p>
+        <h3>${escapeHtml(exp.title)}</h3>
+        <p class="exp-desc">${escapeHtml(exp.description)}</p>
         <ul class="exp-highlights">
-          ${exp.highlights.map(h => `<li>✓ ${h}</li>`).join("")}
+          ${exp.highlights.map(h => `<li>✓ ${escapeHtml(h)}</li>`).join("")}
         </ul>
         <div class="exp-footer">
-          <div class="exp-price">$${exp.price_usd} <span>/ person</span></div>
-          <button class="btn-sm btn-amber" onclick="MetroPassApp.bookManual('${exp.id}')">Book 2 Passes</button>
+          <div class="exp-price">$${escapeHtml(String(exp.price_usd))} <span>/ person</span></div>
+          <button class="btn-sm btn-amber" onclick="MetroPassApp.bookManual('${escapeHtml(exp.id)}')">Book 2 Passes</button>
         </div>
       </div>
     `).join("");

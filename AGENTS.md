@@ -14,7 +14,6 @@ All autonomous AI coding agents (Antigravity, Claude, Cursor, Gemini, Copilot, C
 3. **Inspect the relevant standards**:
    - `knowledge/product/PROD-001-challenge-spec-and-rules.md`: Open Agentic Web specification & hackathon submission protocol.
    - `knowledge/architecture/ARCH-002-tripsteward-federated-architecture.md`: TripSteward autonomous federated travel & cross-site booking architecture.
-   - `knowledge/architecture/ARCH-001-curapilot-consensus-architecture.md`: Founding multi-specialist consensus architecture.
    - `knowledge/development/DEV-001-runtime-and-site-actions.md`: In-browser runtime conventions, site-actions (`website_*`), and Otari BYOK inference standards.
    - `knowledge/development/DEV-002-vm-production-deployment.md`: Production VM deployment, systemd, and reverse proxy standards.
    - `knowledge/development/DEV-003-agent-authoring-and-onboarding-guide.md`: Agent authoring, dynamic discovery, and onboarding standards.

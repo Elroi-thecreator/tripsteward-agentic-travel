@@ -278,8 +278,8 @@ function runInit() {
     },
     actions: {
       agentTools: [
-        `website_query_inventory`,
-        `website_commit_reservation`
+        `query_inventory`,
+        `commit_reservation`
       ]
     },
     peer_policy: {
@@ -313,13 +313,19 @@ function runInit() {
   const actionsJs = `// Grounded executable site actions for ${nodeName}
 import { defineAction, createActionRegistry } from "open-agentic-web";
 
+export function registerActions(registry) {
+  return SiteActions.registerActions(registry);
+}
+
 export class SiteActions {
   static registerActions(registry) {
     registry.register(
       defineAction({
-        name: "website_query_inventory",
+        name: "query_inventory",
         description: "Check live provider availability with zero middleman markup.",
         effect: "read",
+        availability: "bridge",
+        callerOrigins: ["*"],
         inputSchema: {
           type: "object",
           properties: {
@@ -334,9 +340,11 @@ export class SiteActions {
 
     registry.register(
       defineAction({
-        name: "website_commit_reservation",
+        name: "commit_reservation",
         description: "Confirm and commit a direct provider reservation.",
         effect: "irreversible",
+        availability: "bridge",
+        callerOrigins: ["*"],
         inputSchema: {
           type: "object",
           properties: {

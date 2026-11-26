@@ -169,7 +169,7 @@ async function testActions() {
     fare_usd: 68
   });
   assert(transRes.ok === true, "TripSteward confirms partner airport transfer");
-  assert(transRes.transfer_booking_id.startsWith("RIDE-"), "TripSteward registers ride booking reference ID");
+  assert(transRes.transfer_booking_id.startsWith("CG-TRANS-") || transRes.transfer_booking_id.startsWith("RIDE-"), "TripSteward registers ride booking reference ID");
 
   const bookExpTool = HubActions.bookCityExperienceAction();
   const expRes = await bookExpTool.execute({
@@ -180,7 +180,7 @@ async function testActions() {
     special_notes: "Boarding at Pier 39, Marina Gate B"
   });
   assert(expRes.ok === true, "TripSteward confirms partner experience tickets");
-  assert(expRes.experience_pass_id.startsWith("PASS-"), "TripSteward registers experience voucher reference ID");
+  assert(expRes.experience_pass_id.startsWith("MP-PASS-") || expRes.experience_pass_id.startsWith("PASS-"), "TripSteward registers experience voucher reference ID");
 
   const masterTool = HubActions.compileMasterItineraryAction();
   const masterRes = await masterTool.execute({
@@ -188,7 +188,7 @@ async function testActions() {
     destination: "San Francisco, CA",
     dates: "Nov 27 - Nov 29, 2026",
     total_cost_usd: 604,
-    direct_savings_usd: 142,
+    direct_savings_usd: 161,
     itinerary_highlights: [
       "HarborView Hotel: Deluxe Bay-View Queen (2 nights)",
       "CityGlide Transfer: Executive EV Sedan from SFO",
@@ -197,7 +197,7 @@ async function testActions() {
     concierge_notes: "Curbside chauffeur will meet flight UA 482 at 5:00 PM. Sunset sail departs Saturday 6 PM from Pier 39."
   });
   assert(masterRes.ok === true && masterRes.status === "COMMITTED_TO_CLIENT_SESSION", "TripSteward compiles and seals master itinerary");
-  assert(masterRes.itinerary_id.startsWith("ITIN-"), "TripSteward generates sealed itinerary ID");
+  assert(masterRes.itinerary_id.startsWith("TS-ITIN-") || masterRes.itinerary_id.startsWith("ITIN-"), "TripSteward generates sealed itinerary ID");
 
   // Dynamic Agent Discovery & Orchestrator Mounting tests
   const discoverTool = HubActions.discoverAgentNodesAction();
@@ -217,6 +217,33 @@ async function testActions() {
   });
   assert(registerRes.ok === true && registerRes.agent.id === "custom-summitpeak-trail-guides", "TripSteward registers dynamic agent node on the fly");
   assert(registerRes.total_registered_agents >= 3, "TripSteward updates federated swarm count dynamically");
+
+  // 4.5. Validating Runtime Action Module Contract & Bridge Availability
+  console.log("\n4.5. Validating Runtime Action Module Contract & Bridge Availability...");
+  const siteDirs = [
+    { name: "tripsteward-hub", url: hubActionsUrl },
+    { name: "cityglide-node", url: cityglideActionsUrl, isPeer: true },
+    { name: "metropass-node", url: metroActionsUrl, isPeer: true }
+  ];
+
+  for (const s of siteDirs) {
+    const mod = await import(s.url);
+    assert(typeof mod.registerActions === "function", `${s.name} exports top-level registerActions(actions) conforming to nsdeploy runtime import contract`);
+    
+    const registered = [];
+    const mockActions = {
+      register: (def) => registered.push(def)
+    };
+    await mod.registerActions(mockActions);
+    assert(registered.length > 0, `${s.name} registerActions successfully registers action tools`);
+
+    if (s.isPeer) {
+      const allBridge = registered.every(a => a.availability === "bridge");
+      assert(allBridge, `${s.name} actions declare availability: 'bridge' for cross-origin bridge visibility`);
+      const allAllowed = registered.every(a => Array.isArray(a.callerOrigins) && (a.callerOrigins.includes("*") || a.callerOrigins.length > 0));
+      assert(allAllowed, `${s.name} actions declare valid callerOrigins allowing cross-origin orchestrators`);
+    }
+  }
 
   // 5. Dogfood & Validate with open-agentic-web SDK
   console.log("\n5. Testing Open Agentic Web SDK & Dynamic Federation Engine...");

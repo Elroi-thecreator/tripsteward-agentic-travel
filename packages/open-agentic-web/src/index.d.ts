@@ -3,7 +3,7 @@
  * Spec: Cognizant AI Lab / Mozilla Otari / MIT NANDA MVP Profile 0.3
  */
 
-export type ActionEffect = "read" | "irreversible" | "undoable";
+export type ActionEffect = "read" | "write" | "irreversible" | "undoable";
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "ollama" | "custom";
 
 export interface JSONSchema {

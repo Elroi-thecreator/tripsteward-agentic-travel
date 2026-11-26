@@ -42,6 +42,7 @@ All code in this project must adhere to the standard Open Agentic Web implementa
 Adherence to these development standards ensures 100% interoperability with the Worldwide Agentic Web specification, guaranteeing pass/fail conformance in Stage 1 of judging.
 
 ## Related Items
+- `knowledge/index.yaml`
 - `PROD-001`: Open Agentic Web Challenge Specification & Submission Protocol
-- `ARCH-001`: CuraPilot Zero-Leakage Multi-Specialist Consensus Architecture
+- `ARCH-002`: TripSteward Autonomous Federated Travel & Cross-Site Booking Architecture
 - `DEV-002`: Production VM Deployment & Reverse Proxy Architecture

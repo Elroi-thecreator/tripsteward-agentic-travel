@@ -278,7 +278,10 @@ export async function validateNode(nodeDir) {
 
         let registrationOk = false;
         try {
-          if (typeof actionClass.registerActions === "function") {
+          if (typeof mod.registerActions === "function") {
+            await mod.registerActions(mockRegistry);
+            registrationOk = true;
+          } else if (typeof actionClass.registerActions === "function") {
             await actionClass.registerActions(mockRegistry);
             registrationOk = true;
           } else if (typeof actionClass === "function") {
@@ -291,6 +294,11 @@ export async function validateNode(nodeDir) {
         } catch (err) {
           report.assert(false, `SiteActions.registerActions execution failed: ${err.message}`, { warning: false });
         }
+
+        report.assert(
+          typeof mod.registerActions === "function" || typeof actionClass.registerActions === "function",
+          `Action module '${actionsPath}' exports registerActions conforming to nsdeploy runtime import contract`
+        );
 
         if (registrationOk) {
           report.assert(
@@ -318,7 +326,7 @@ export async function validateNode(nodeDir) {
                 `Tool '${declaredTool}' provides an executable handler`
               );
               report.assert(
-                ["read", "irreversible", "undoable"].includes(act.effect),
+                ["read", "write", "irreversible", "undoable"].includes(act.effect),
                 `Tool '${declaredTool}' declares valid effect ('${act.effect || 'missing'}')`
               );
             }

@@ -17,8 +17,11 @@ export async function loadActionModule(registry, scope, manifest, { bridge = fal
   if (manifest.actions.catalog) await loadDiscoveredActions(actions, sameOriginAsset(scope.base, manifest.actions.catalog), manifest.actions.callerOrigins || []);
   for (const path of new Set([manifest.actions.module, ...(manifest.actions.modules || [])].filter(Boolean))) {
     const module = await import(sameOriginAsset(scope.base, path));
-    if (typeof module.registerActions !== "function") throw new Error("Action modules must export registerActions.");
-    await module.registerActions(actions);
+    const registerFn = typeof module.registerActions === "function"
+      ? module.registerActions
+      : (typeof module.SiteActions?.registerActions === "function" ? module.SiteActions.registerActions : null);
+    if (typeof registerFn !== "function") throw new Error("Action modules must export registerActions.");
+    await registerFn(actions);
   }
   await registerFormActions(actions, {
     pages: manifest.actions.pages || [], callerOrigins: manifest.actions.callerOrigins || [], base: scope.base,
@@ -181,7 +184,7 @@ async function discoverRemoteActions(registry, scope, url, brand) {
 }
 
 export async function serveActionBridge() {
-  const base = new URL("./", location.href).href.replace(/\/$/, "");
+  const base = new URL("../", location.href).href.replace(/\/$/, "");
   const response = await fetch(`${base}/agent-manifest.json`);
   if (!response.ok) throw new Error("Cannot load action manifest.");
   const manifest = await response.json();
@@ -202,29 +205,32 @@ export async function serveActionBridge() {
     const port = event.ports[0]; const seen = new Set(); let busy = false;
     port.onmessage = async ({ data }) => {
       const id = data?.id;
-      if (!Number.isSafeInteger(id)) return;
+      if (!Number.isSafeInteger(id) && typeof id !== "string" && typeof id !== "number") return;
       try {
         const request = cloneData(data);
         if (request.type === "catalog") {
           const value = allowed.map(({ name, description, inputSchema, outputSchema, effect, availability }) => ({ name, description, inputSchema, outputSchema, effect, availability }));
-          port.postMessage({ id, ok: true, value }); return;
+          port.postMessage({ id, ok: true, value, tools: value }); return;
         }
-        if (request.type !== "execute" || busy) throw new Error("Invalid or concurrent action request.");
-        const entry = allowed.find(e => e.name === request.name);
+        if ((request.type !== "execute" && request.type !== "call") || busy) throw new Error("Invalid or concurrent action request.");
+        const actionName = request.name || request.action;
+        const entry = allowed.find(e => e.name === actionName);
         if (!entry) throw new Error("Action is not exposed to this caller.");
         if (entry.effect !== "read" || entry.availability === "top-level") {
           if (window.top !== window || !window.opener) throw new Error("This action requires its own confirmation window.");
         }
-        if (typeof request.requestId !== "string" || request.requestId.length > 200 || seen.has(request.requestId)) throw new Error("Invalid or repeated request ID.");
-        validateData(entry.inputSchema, request.args);
+        const requestId = request.requestId || (typeof id === "string" ? id : `req_${id}_${Date.now()}`);
+        if (typeof requestId !== "string" || requestId.length > 200 || seen.has(requestId)) throw new Error("Invalid or repeated request ID.");
+        const actionArgs = request.args || request.arguments || {};
+        validateData(entry.inputSchema, actionArgs);
         busy = true;
         try {
           // An action that shows its own confirmation in this window skips the generic dialog.
-          if (entry.effect !== "read" && !entry.confirmsInWindow && !await reviewActions([{ action: entry.name, description: entry.description, origin: location.origin, effect: entry.effect, arguments: request.args }], `Request from ${caller}`)) throw new Error("User declined; action not started.");
-          seen.add(request.requestId);
-          const value = cloneData(await entry.execute(request.args, { requestId: request.requestId, callerOrigin: caller }));
+          if (entry.effect !== "read" && !entry.confirmsInWindow && !await reviewActions([{ action: entry.name, description: entry.description, origin: location.origin, effect: entry.effect, arguments: actionArgs }], `Request from ${caller}`)) throw new Error("User declined; action not started.");
+          seen.add(requestId);
+          const value = cloneData(await entry.execute(actionArgs, { requestId, callerOrigin: caller }));
           if (entry.outputSchema) validateData(entry.outputSchema, value, "result");
-          port.postMessage({ id, ok: true, value });
+          port.postMessage({ id, ok: true, value, result: value });
         } finally { busy = false; }
       } catch (error) { port.postMessage({ id, ok: false, error: String(error.message || error) }); }
     };

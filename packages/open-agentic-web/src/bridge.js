@@ -40,10 +40,11 @@ export function setupActionBridge({
       .then(res => res.json())
       .then(manifest => {
         const policy = manifest.peer_policy;
-        if (policy?.mode === "open") {
+        const allowedPeers = manifest.allowed_peers || policy?.allowed_peers;
+        if (policy?.mode === "open" || (!policy && !allowedPeers)) {
           effectiveAllowedOrigins = ["*"];
-        } else if (policy?.mode === "closed" && Array.isArray(policy.allowed_peers)) {
-          effectiveAllowedOrigins = [...policy.allowed_peers];
+        } else if (Array.isArray(allowedPeers)) {
+          effectiveAllowedOrigins = [...allowedPeers];
         } else if (allowedOrigins === undefined) {
           effectiveAllowedOrigins = [];
         }
@@ -132,16 +133,18 @@ export function setupActionBridge({
           if (portData.type === "catalog") {
             const { id } = portData;
             const tools = registry.catalog();
-            port.postMessage({ id, ok: true, tools, protocol });
+            port.postMessage({ id, ok: true, value: tools, tools, protocol });
             return;
           }
 
-          if (portData.type !== "call") return;
+          if (portData.type !== "execute" && portData.type !== "call") return;
 
-          const { id, action, arguments: args } = portData;
+          const id = portData.id;
+          const action = portData.name || portData.action;
+          const args = portData.args || portData.arguments || {};
           try {
             const result = await executeWithSecurity(action, args, origin);
-            port.postMessage({ id, ok: true, result, protocol });
+            port.postMessage({ id, ok: true, value: result, result, protocol });
           } catch (err) {
             port.postMessage({
               id,
@@ -162,25 +165,29 @@ export function setupActionBridge({
     // Direct fallback catalog discovery if no MessageChannel
     if (data.type === "catalog" && data.id) {
       const tools = registry.catalog();
-      source?.postMessage({ id: data.id, ok: true, tools, protocol }, origin);
+      source?.postMessage({ id: data.id, ok: true, value: tools, tools, protocol }, origin);
       return;
     }
 
     // Direct fallback communication if no MessageChannel
-    if (data.type === "call" && data.id && data.action) {
-      const { id, action, arguments: args } = data;
-      try {
-        const result = await executeWithSecurity(action, args, origin);
-        source?.postMessage({ id, ok: true, result, protocol }, origin);
-      } catch (err) {
-        source?.postMessage({
-          id,
-          ok: false,
-          error: err.message,
-          errors: err.errors || [],
-          isSecurityError: err instanceof ActionSecurityError,
-          protocol
-        }, origin);
+    if ((data.type === "execute" || data.type === "call") && data.id) {
+      const id = data.id;
+      const action = data.name || data.action;
+      const args = data.args || data.arguments || {};
+      if (action) {
+        try {
+          const result = await executeWithSecurity(action, args, origin);
+          source?.postMessage({ id, ok: true, value: result, result, protocol }, origin);
+        } catch (err) {
+          source?.postMessage({
+            id,
+            ok: false,
+            error: err.message,
+            errors: err.errors || [],
+            isSecurityError: err instanceof ActionSecurityError,
+            protocol
+          }, origin);
+        }
       }
     }
   };
@@ -265,10 +272,10 @@ export function createActionBridgeClient({
               return;
             }
 
-            if (data?.id && pendingRequests.has(data.id)) {
+            if (data?.id !== undefined && pendingRequests.has(data.id)) {
               const { res, rej } = pendingRequests.get(data.id);
               pendingRequests.delete(data.id);
-              if (data.ok) res(data.tools !== undefined ? data.tools : data.result);
+              if (data.ok) res(data.value !== undefined ? data.value : (data.tools !== undefined ? data.tools : data.result));
               else rej(new Error(data.error || "Action execution failed."));
             }
           };
@@ -301,7 +308,8 @@ export function createActionBridgeClient({
         throw new DOMException("The action execution was aborted.", "AbortError");
       }
       await connect();
-      const id = `req_${++seq}_${Date.now()}`;
+      const id = ++seq;
+      const requestId = `req_${id}_${Date.now()}`;
 
       return new Promise((res, rej) => {
         const timer = setTimeout(() => {
@@ -333,10 +341,13 @@ export function createActionBridgeClient({
         });
 
         port.postMessage({
-          type: "call",
+          type: "execute",
           id,
+          name: actionName,
           action: actionName,
+          args,
           arguments: args,
+          requestId,
           protocol: ACTION_BRIDGE_PROTOCOL
         });
       });
@@ -350,7 +361,7 @@ export function createActionBridgeClient({
         throw new DOMException("The catalog request was aborted.", "AbortError");
       }
       await connect();
-      const id = `cat_${++seq}_${Date.now()}`;
+      const id = ++seq;
 
       return new Promise((res, rej) => {
         const timer = setTimeout(() => {

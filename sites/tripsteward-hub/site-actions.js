@@ -3,6 +3,10 @@
 // and dynamic Open Agentic Web node discovery & registration.
 import { TripStewardApp } from "./script.js";
 
+export function registerActions(actions) {
+  return SiteActions.registerActions(actions);
+}
+
 export class SiteActions {
   static registerActions(actions) {
     actions.register(SiteActions.getTripPreferencesAction());
@@ -19,6 +23,8 @@ export class SiteActions {
       name: "get_trip_preferences",
       description: "Retrieve the active traveler profile and booking requirements (destination, check-in/out dates, party size, target budget, and special preferences) from sovereign browser memory.",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {},
@@ -35,6 +41,8 @@ export class SiteActions {
       name: "reserve_hotel_room",
       description: "Reserve a boutique hotel room at HarborView Hotel matching the traveler's dates and budget.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -75,6 +83,8 @@ export class SiteActions {
       name: "book_airport_transfer",
       description: "Commit an airport chauffeur pickup reservation with partner network CityGlide Transfer.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -113,6 +123,8 @@ export class SiteActions {
       name: "book_city_experience",
       description: "Commit timed admission or guided activity passes with partner network MetroPass Experiences.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -151,6 +163,8 @@ export class SiteActions {
       name: "compile_master_itinerary",
       description: "Synthesize all confirmed bookings (hotel room, airport transfer, and city experience passes) into a unified master travel pass with itemized pricing, savings, and QR confirmation vouchers.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -198,6 +212,8 @@ export class SiteActions {
       name: "discover_agent_nodes",
       description: "Search the decentralized Open Agentic Web registry for available specialist nodes (mobility, dining, ski/adventures, baggage courier, travel insurance) matching traveler goals.",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -223,6 +239,8 @@ export class SiteActions {
       name: "register_agent_node",
       description: "Dynamically mount and link an external agentic web node into the active orchestrator graph on the fly.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {

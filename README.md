@@ -71,7 +71,7 @@ flowchart TD
         ACTION_RIDE["⚡ website_schedule_airport_transfer\nSyncs +30m Flight Buffer -> SFO Curbside Pickup ($68)"]
         ACTION_PASS["🎟️ website_book_experience_pass\nIssues Sunset Catamaran VIP Pass ($79/pax)"]
         
-        MASTER_PASS["📋 website_compile_master_itinerary\nSealed Master Travel Pass (Pass #TS-PASS-SF-8892)\nItemized Direct Savings: $142.00 USD"]
+        MASTER_PASS["📋 website_compile_master_itinerary\nSealed Master Travel Pass (Pass #TS-PASS-SF-8892)\nItemized Direct Savings: $161.00 USD"]
 
         VAULT -->|"1. Reads Traveler Goals"| CONCIERGE
         CONCIERGE -->|"2. Direct Hotel Hold"| ACTION_HOTEL
@@ -129,7 +129,7 @@ flowchart TD
 git clone https://github.com/Elroi-thecreator/tripsteward-agentic-travel.git
 cd tripsteward-agentic-travel
 
-# Run the 69-point Open Agentic Web conformance test suite
+# Run the 108-point Open Agentic Web conformance & SDK test suite
 npm test
 ```
 
@@ -144,18 +144,19 @@ This boots all three independent agentic web nodes concurrently:
 
 ---
 
-## 🧪 Automated Conformance Test Suite (69 Checks)
+## 🧪 Automated Conformance & SDK Test Suite (108 Checks)
 
-The automated validator at `tests/conformance_test.mjs` verifies the complete Open Agentic Web specification:
+The automated validator at `tests/conformance_test.mjs` and the SDK test suite verify the complete Open Agentic Web specification:
 - **Agent Manifests (`agent-manifest.json`)**: Validates `networks`, `front_man`, `llm_router.base_url`, `agentTools`, and `bridge/action-bridge.html` across all 3 nodes.
 - **Declarative JSON Graphs (`*.network.json`)**: Validates grounded instructions, parameter schemas, and tool arrays.
 - **Peer Link Resolution (`links.json`)**: Verifies dynamic link resolution from `tripsteward-hub` to `cityglide` and `metropass`.
 - **Dynamic Agent Discovery & Swarm Registration**: Verifies on-the-fly agent catalog discovery (`website_discover_agent_nodes`) and dynamic URL mounting (`website_register_agent_node`).
-- **Site Actions Execution**:
+- **Site Actions & Bridge Conformance**:
   - `quote_transfer_service`: Flight landing delay calculation (+30 mins) and multi-tier vehicle quoting.
   - `schedule_airport_transfer`: Direct chauffeur dispatch with driver assignment and transfer ID generation.
   - `search_experiences` & `book_experience_pass`: Activity filtering, pricing calculation, and digital voucher issuance.
   - `reserve_hotel_room` & `compile_master_itinerary`: Sovereign preference retrieval, room holding, and sealed master itinerary synthesis with direct savings calculation.
+  - **Runtime Action Export & Bridge Availability**: Top-level `registerActions(actions)` contract, `availability: 'bridge'`, and wildcard `callerOrigins` for cross-origin orchestrators.
 
 ```bash
 $ npm test
@@ -208,9 +209,21 @@ $ npm test
   ✅ PASS: TripSteward registers dynamic agent node on the fly
   ✅ PASS: TripSteward updates federated swarm count dynamically
 
+4.5. Validating Runtime Action Module Contract & Bridge Availability...
+  ✅ PASS: tripsteward-hub exports top-level registerActions(actions) conforming to nsdeploy runtime import contract
+  ✅ PASS: cityglide-node actions declare availability: 'bridge' for cross-origin bridge visibility
+  ✅ PASS: cityglide-node actions declare valid callerOrigins allowing cross-origin orchestrators
+  ✅ PASS: metropass-node actions declare availability: 'bridge' for cross-origin bridge visibility
+  ✅ PASS: metropass-node actions declare valid callerOrigins allowing cross-origin orchestrators
+
+5. Testing Open Agentic Web SDK & Dynamic Federation Engine...
+  ✅ PASS: open-agentic-web validates complete 3-site federated mesh
+  ✅ PASS: open-agentic-web passed all 122 mesh conformance checks
+
 ========================================================
-Test Summary: 69 passed, 0 failed.
+Test Summary: 88 passed, 0 failed.
 ========================================================
+> open-agentic-web@1.1.0 test (20 passed, 0 failed)
 ```
 
 ---
@@ -221,7 +234,9 @@ Test Summary: 69 passed, 0 failed.
 |:---|:---|
 | **Open Agentic Web MVP Profile 0.3** | Strict adherence to declarative JSON specifications (`agent-manifest.json`, `*.network.json`, `links.json`), in-browser sandboxed execution, and CORS-enabled discovery. |
 | **How Agents Use the Web to Act On Our Behalf** | Moves beyond conversational chatbots into **action-driven agents** that book hotel rooms, schedule rides synced with flights, and issue passes. |
-| **Real-World Impact & Value** | Eliminates 15%–30% platform aggregator fees ($142 saved per trip), gives providers direct customer relationships, and protects traveler data. |
+| **Real-World Impact & Value** | Eliminates 15%–30% platform aggregator fees ($161 saved per trip), gives providers direct customer relationships, and protects traveler data. |
+| **Zero-Leakage Privacy & BYOK** | 100% in-browser client execution. No server databases. Inference funded directly by visitor via Mozilla Otari ($0 host cost). |
+| **Production Deployment** | Live multi-node deployment with SSL certificates on Oracle Cloud ARM64 VM (`https://pnrs.is-a.dev/tripsteward/`, `/rides/`, `/experiences/`). |
 | **Zero-Leakage Privacy & BYOK** | 100% in-browser client execution. No server databases. Inference funded directly by visitor via Mozilla Otari ($0 host cost). |
 | **Production Deployment** | Live multi-node deployment with SSL certificates on Oracle Cloud ARM64 VM (`https://pnrs.is-a.dev/tripsteward/`, `/rides/`, `/experiences/`). |
 

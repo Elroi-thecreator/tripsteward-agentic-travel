@@ -243,7 +243,26 @@ export class Engine {
       const resp = await fetch(resolveUrl(base, "/links.json"), { cache: "no-store" });
       if (!resp.ok) return {};
       const doc = await resp.json();
-      return doc?.networks?.[networkName] || {};
+      const rawLinks = doc?.networks?.[networkName] || {};
+      const links = { ...rawLinks };
+      // Local development auto-rebinding if running on localhost / loopback
+      try {
+        const baseObj = new URL(base);
+        if (baseObj.hostname === "localhost" || baseObj.hostname === "127.0.0.1") {
+          for (const [key, target] of Object.entries(links)) {
+            if (typeof target === "string" && target.includes("pnrs.is-a.dev")) {
+              if (baseObj.port === "8080") {
+                if (target.includes("/rides/")) links[key] = `http://${baseObj.hostname}:8081/cityglide_transfer`;
+                if (target.includes("/experiences/")) links[key] = `http://${baseObj.hostname}:8082/metropass_experiences`;
+              } else if (baseObj.port === "8880") {
+                if (target.includes("/rides/")) links[key] = `http://${baseObj.hostname}:8881/cityglide_transfer`;
+                if (target.includes("/experiences/")) links[key] = `http://${baseObj.hostname}:8882/metropass_experiences`;
+              }
+            }
+          }
+        }
+      } catch {}
+      return links;
     } catch {
       return {};
     }

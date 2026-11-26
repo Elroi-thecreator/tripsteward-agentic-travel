@@ -2,6 +2,10 @@
 // Exposes activity search, digital pass booking, and live ticket vault for the Open Agentic Web.
 import { MetroPassApp } from "./script.js";
 
+export function registerActions(actions) {
+  return SiteActions.registerActions(actions);
+}
+
 export class SiteActions {
   static registerActions(actions) {
     actions.register(SiteActions.searchExperiencesAction());
@@ -14,6 +18,8 @@ export class SiteActions {
       name: "search_experiences",
       description: "Search curated city experiences, sunset cruises, museum VIP passes, and culinary tours.",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -43,6 +49,8 @@ export class SiteActions {
       name: "book_experience_pass",
       description: "Issue and reserve verified digital admission tickets or activity passes with direct provider confirmation.",
       effect: "irreversible",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {
@@ -77,6 +85,8 @@ export class SiteActions {
       name: "get_available_catalog",
       description: "Query full verified activity catalog and seasonal city highlights.",
       effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
       inputSchema: {
         type: "object",
         properties: {},

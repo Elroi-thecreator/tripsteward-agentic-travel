@@ -44,7 +44,19 @@ export function requiresThirdPartyApproval(ref, baseOrigin) {
     const base = new URL(baseOrigin);
     const target = new URL(raw, base);
     const externalMcpProxy = /^\/ext-mcp(?:\/|$)/i.test(target.pathname);
-    return externalMcpProxy || target.origin !== base.origin;
+    if (externalMcpProxy) return true;
+    if (target.origin !== base.origin) return true;
+
+    // Subpath deployment cross-node isolation:
+    // When multiple federated agent nodes live on the same origin (e.g. /tripsteward/, /rides/, /experiences/),
+    // detect cross-node boundary and require third-party approval.
+    const baseSegment = base.pathname.split("/").filter(Boolean)[0] || "";
+    const targetSegment = target.pathname.split("/").filter(Boolean)[0] || "";
+    if (baseSegment && targetSegment && baseSegment !== targetSegment) {
+      return true;
+    }
+
+    return false;
   } catch {
     // Invalid or opaque destinations must never bypass the consent boundary.
     return true;

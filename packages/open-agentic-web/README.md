@@ -268,11 +268,11 @@ await swarm.mountFromUrl("https://partner-dining.com", {
 // 2. Search active specialist nodes in the swarm
 const diningAgents = swarm.search({ category: "Dining" });
 
-// 3. Execute an autonomous multi-step turn with tool-calling (OpenAI, Anthropic, Gemini, Ollama, or custom adapter)
+// 3. Execute an autonomous multi-step turn with tool-calling (OpenAI-compatible, Anthropic, or custom adapter)
 const turnResult = await swarm.runTurn({
   prompt: "Find a waterfront dinner table for 2 guests around 7 PM",
   apiKey: "otk_my_key", // Visitor's BYOK key
-  provider: "openai",   // "openai" | "anthropic" | "gemini" | "ollama"
+  provider: "openai",   // "openai" (OpenAI-compatible: Otari, OpenRouter, Ollama) | "anthropic" | custom adapter
   signal: abortController.signal, // Supports cancellation
   onStep: ({ step, tool, arguments: args, result }) => {
     console.log(`[Step ${step}] Executed ${tool}:`, result);

@@ -1,4 +1,15 @@
 // CityGlide Autonomous Fleet & Airport Transfers UI & Dispatch Vault
+
+function escapeHtml(str) {
+  if (typeof str !== "string") return String(str ?? "");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export class CityGlideApp {
   static vault = {
     fleet: [
@@ -154,16 +165,16 @@ export class CityGlideApp {
     list.innerHTML = CityGlideApp.vault.reservations.map(r => `
       <div class="dispatch-card">
         <div class="dispatch-header">
-          <span class="badge badge-success">${r.status}</span>
-          <span class="transfer-code">${r.transfer_id}</span>
+          <span class="badge badge-success">${escapeHtml(r.status)}</span>
+          <span class="transfer-code">${escapeHtml(r.transfer_id)}</span>
         </div>
         <div class="dispatch-body">
-          <div class="dispatch-row"><strong>Passenger:</strong> <span>${r.passenger_name}</span></div>
-          <div class="dispatch-row"><strong>Vehicle:</strong> <span>${r.vehicle_class}</span></div>
-          <div class="dispatch-row"><strong>Driver:</strong> <span>${r.driver}</span></div>
-          <div class="dispatch-row"><strong>Pickup:</strong> <span>${r.pickup_location} @ ${r.pickup_time}</span></div>
-          <div class="dispatch-row"><strong>Destination:</strong> <span>${r.dropoff_location}</span></div>
-          <div class="dispatch-row"><strong>Fare:</strong> <span class="price-pill">$${r.fare_usd}.00 USD (Direct Rate)</span></div>
+          <div class="dispatch-row"><strong>Passenger:</strong> <span>${escapeHtml(r.passenger_name)}</span></div>
+          <div class="dispatch-row"><strong>Vehicle:</strong> <span>${escapeHtml(r.vehicle_class)}</span></div>
+          <div class="dispatch-row"><strong>Driver:</strong> <span>${escapeHtml(r.driver)}</span></div>
+          <div class="dispatch-row"><strong>Pickup:</strong> <span>${escapeHtml(r.pickup_location)} @ ${escapeHtml(r.pickup_time)}</span></div>
+          <div class="dispatch-row"><strong>Destination:</strong> <span>${escapeHtml(r.dropoff_location)}</span></div>
+          <div class="dispatch-row"><strong>Fare:</strong> <span class="price-pill">$${Number(r.fare_usd || 0).toFixed(2)} USD (Direct Rate)</span></div>
         </div>
       </div>
     `).join("");

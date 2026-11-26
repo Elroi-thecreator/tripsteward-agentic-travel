@@ -1,5 +1,15 @@
-// Voyager — Federated Open Agentic Web Orchestrator
+// TripSteward — Autonomous Federated Travel Concierge
 // Operates 100% in browser memory. Dynamically discovers, mounts, and coordinates multi-agent web networks.
+
+function escapeHtml(str) {
+  if (typeof str !== "string") return String(str ?? "");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export class TripStewardVault {
   constructor() {
@@ -19,24 +29,24 @@ export class TripStewardVault {
         { category: "Activities", value: "Scenic sunset catamaran sailing on the bay for 2 guests" }
       ],
       room_options: [
-        { tier: "Deluxe Bay-View Queen", rate: 185, status: "AVAILABLE", view: "Panoramic Bay & Bridge View" },
+        { tier: "Deluxe Bay-View Queen", rate: 189, status: "AVAILABLE", view: "Panoramic Bay & Bridge View" },
         { tier: "Urban Executive Loft", rate: 220, status: "AVAILABLE", view: "Skyline & City Lights" },
         { tier: "Panoramic Harbor Penthouse", rate: 395, status: "AVAILABLE", view: "Private Wrap-Around Terrace" }
       ],
       demo_script: {
-        prompt: "Voyager Orchestrator, please coordinate my journey for San Francisco. Reserve a quiet room at HarborView under $200/night, coordinate a private airport transfer with CityGlide for my flight arriving at 4:30 PM, and book two sunset bay cruise tickets with MetroPass.",
-        cityglide_response: "CityGlide Transfer Dispatch confirmed: Vehicle 'Executive EV Sedan' (Tesla Model S) assigned. Flight UA 482 tracked in real-time. Pickup locked for 5:00 PM at SFO Terminal 2 with 30-minute post-touchdown grace buffer. Direct transit time to HarborView: 28 mins. Fixed Fare: $45.00 USD (Ref: #RIDE-8492).",
-        metropass_response: "MetroPass Experiences Curator confirmed: Reserved 2x VIP Tickets for 'Golden Gate Sunset Catamaran Sailing' on Saturday, Nov 28 at 5:45 PM. Priority boarding at Pier 39 included. Total Price: $100.00 USD (Ref: #PASS-3104).",
+        prompt: "TripSteward Concierge, please coordinate my journey for San Francisco. Reserve a quiet room at HarborView under $200/night, coordinate a private airport transfer with CityGlide for my flight arriving at 4:30 PM, and book two sunset bay cruise tickets with MetroPass.",
+        cityglide_response: "CityGlide Transfer Dispatch confirmed: Vehicle 'Executive EV Sedan' (Tesla Model S) assigned. Flight UA 482 tracked in real-time. Pickup locked for 5:00 PM at SFO Terminal 2 with 30-minute post-touchdown grace buffer. Direct transit time to HarborView: 28 mins. Fixed Fare: $68.00 USD (Ref: #CG-TRANS-8492).",
+        metropass_response: "MetroPass Experiences Curator confirmed: Reserved 2x VIP Tickets for 'Golden Gate Sunset Catamaran Sailing' on Saturday, Nov 28 at 5:45 PM. Priority boarding at Pier 39 included. Total Price: $158.00 USD (Ref: #MP-PASS-3104).",
         itinerary: {
           trip_title: "San Francisco Autumn Waterfront Retreat",
           destination: "San Francisco, California",
           dates: "Nov 27 – Nov 29, 2026 (2 Nights)",
-          total_cost_usd: 515.00,
-          direct_savings_usd: 142.00,
+          total_cost_usd: 604.00,
+          direct_savings_usd: 161.00,
           itinerary_highlights: [
-            "🏨 HarborView Hotel: Deluxe Bay-View Queen (2 Nights @ $185/night = $370)",
-            "🚗 CityGlide Transfer: Executive EV Sedan (SFO Terminal 2 to Hotel = $45)",
-            "⛵ MetroPass Experience: 2x Sunset Catamaran Sailing Passes ($100)"
+            "🏨 HarborView Hotel: Deluxe Bay-View Queen (2 Nights @ $189/night = $378)",
+            "🚗 CityGlide Transfer: Executive EV Sedan (SFO Terminal 2 to Hotel = $68)",
+            "⛵ MetroPass Experience: 2x Sunset Catamaran Sailing Passes ($158)"
           ],
           concierge_notes: "Direct booking confirmed across all connected provider nodes. 0% middleman booking fees. Digital passes and driver dispatch contact stored in your local session."
         }
@@ -244,7 +254,7 @@ export class TripStewardVault {
 
   reserveHotelRoom(room) {
     this.hotelReservation = {
-      id: "STAY-" + Math.floor(10000 + Math.random() * 90000),
+      id: "HV-STAY-" + Math.floor(10000 + Math.random() * 90000),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "RESERVED_DIRECT",
       ...room
@@ -260,7 +270,7 @@ export class TripStewardVault {
 
   bookAirportTransfer(transfer) {
     this.airportTransfer = {
-      id: "RIDE-" + Math.floor(10000 + Math.random() * 90000),
+      id: "CG-TRANS-" + Math.floor(10000 + Math.random() * 90000),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "DISPATCHED_ON_NETWORK",
       ...transfer
@@ -276,7 +286,7 @@ export class TripStewardVault {
 
   bookCityExperience(exp) {
     this.cityExperience = {
-      id: "PASS-" + Math.floor(10000 + Math.random() * 90000),
+      id: "MP-PASS-" + Math.floor(10000 + Math.random() * 90000),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "CONFIRMED_VOUCHER_ISSUED",
       ...exp
@@ -300,7 +310,7 @@ export class TripStewardVault {
     return {
       ok: true,
       status: "COMMITTED_TO_CLIENT_SESSION",
-      itinerary_id: "ITIN-" + Math.floor(100000 + Math.random() * 900000),
+      itinerary_id: "TS-ITIN-" + Math.floor(100000 + Math.random() * 900000),
       message: "Unified Master Travel Itinerary synthesized and sealed with direct provider savings."
     };
   }
@@ -312,13 +322,14 @@ export class TripStewardVault {
     const demo = t.demo_script;
 
     const btn = document.querySelector("#demo-simulate-btn");
-    if (btn) btn.textContent = "⏳ Orchestrating Connected Agents...";
+    if (btn) btn.innerHTML = `<span>⏳ Playing Offline Demo Flow...</span>`;
 
+    TripStewardApp.appendSimulatedMessage("bot", `ℹ️ **Offline Demo Mode:** Previewing multi-agent federation flow with simulated responses. To run live LLM inference with your own key, configure your BYOK key in the chat settings below.`);
     TripStewardApp.appendSimulatedMessage("user", demo.prompt);
 
     // 1. Hotel Reservation
     setTimeout(() => {
-      TripStewardApp.appendSimulatedMessage("bot", `🛎️ **Travel Orchestrator:** Starting dynamic Open Agentic Web coordination for ${t.destination}. Direct-holding HarborView boutique room...`);
+      TripStewardApp.appendSimulatedMessage("bot", `🛎️ **Travel Orchestrator:** Starting dynamic Open Agentic Web coordination for ${escapeHtml(t.destination)}. Direct-holding HarborView boutique room...`);
       
       this.reserveHotelRoom({
         room_tier: t.room_options[0].tier,
@@ -339,7 +350,7 @@ export class TripStewardVault {
         dropoff_location: "HarborView Hotel, 450 Waterfront Blvd",
         vehicle_class: "Executive EV Sedan (Lucid Air / Tesla Model S)",
         pickup_time: "5:00 PM (Flight UA 482 landing buffer +30m)",
-        fare_usd: 45.00
+        fare_usd: 68.00
       });
     }, 1800);
 
@@ -352,7 +363,7 @@ export class TripStewardVault {
         experience_name: "Golden Gate Sunset Catamaran Cruise",
         scheduled_slot: "Saturday, 5:45 PM – 7:30 PM",
         tickets_count: t.traveler.party_size,
-        total_price_usd: 100.00,
+        total_price_usd: 158.00,
         special_notes: "Arrive at Pier 39 gate B 15 minutes prior. Digital QR pass verified."
       });
     }, 3000);
@@ -378,7 +389,7 @@ export class TripStewardVault {
       TripStewardApp.appendSimulatedMessage("bot", `🛎️ **Travel Orchestrator:** All direct reservations confirmed across ${this.registeredAgents.length + 1} independent websites! 0% aggregator markups applied. Synthesizing sealed Master Travel Pass...`);
       this.compileMasterItinerary(demo.itinerary);
       this.simulating = false;
-      if (btn) btn.innerHTML = `<span>✓ Journey Fully Orchestrated!</span>`;
+      if (btn) btn.innerHTML = `<span>✓ Demo Flow Completed</span>`;
     }, 4500);
   }
 }
@@ -531,7 +542,7 @@ export class TripStewardApp {
       resetBtn.addEventListener("click", () => {
         TripStewardApp.vault.setJourney({});
         const simBtn = document.querySelector("#demo-simulate-btn");
-        if (simBtn) simBtn.innerHTML = `<span class="btn-icon">⚡</span><span>Orchestrate Full Journey</span>`;
+        if (simBtn) simBtn.innerHTML = `<span class="btn-icon">▶</span><span>Preview Demo Flow (No Key)</span>`;
         const chatMsgs = document.querySelector("#ns-msgs");
         if (chatMsgs) {
           chatMsgs.innerHTML = `<div class="ns-msg bot">I am your autonomous Travel Orchestrator. I discover and coordinate independent specialist agents across the Open Agentic Web on your behalf. How can I assist with your journey?</div>`;
@@ -547,8 +558,8 @@ export class TripStewardApp {
             trip_title: TripStewardApp.vault.activeJourney.title,
             destination: TripStewardApp.vault.activeJourney.destination,
             dates: TripStewardApp.vault.activeJourney.dates,
-            total_cost_usd: 515.00,
-            direct_savings_usd: 142.00,
+            total_cost_usd: 604.00,
+            direct_savings_usd: 161.00,
             itinerary_highlights: [
               "HarborView Hotel Room Direct Reservation",
               "CityGlide Executive EV Airport Chauffeur (Flight-Synced)",
@@ -575,13 +586,13 @@ export class TripStewardApp {
 
     container.innerHTML = agents.map(agent => `
       <div class="swarm-node-chip">
-        <span class="chip-icon">${agent.icon || '🌐'}</span>
+        <span class="chip-icon">${escapeHtml(agent.icon || '🌐')}</span>
         <div class="chip-info">
-          <span class="chip-name">${agent.name}</span>
-          <span class="chip-role">${agent.category} • ${agent.front_man}</span>
+          <span class="chip-name">${escapeHtml(agent.name)}</span>
+          <span class="chip-role">${escapeHtml(agent.category)} • ${escapeHtml(agent.front_man)}</span>
         </div>
         <span class="chip-status-dot" title="Active on Open Agentic Web"></span>
-        <button class="chip-unlink-btn" onclick="TripStewardApp.unlinkAgentNode('${agent.id}')" title="Unlink agent from swarm">&times;</button>
+        <button class="chip-unlink-btn" onclick="TripStewardApp.unlinkAgentNode('${escapeHtml(agent.id)}')" title="Unlink agent from swarm">&times;</button>
       </div>
     `).join("");
   }
@@ -606,18 +617,18 @@ export class TripStewardApp {
       return `
         <div class="discover-agent-card ${isLinked ? 'already-linked' : ''}">
           <div class="discover-card-top">
-            <span class="discover-icon">${agent.icon}</span>
-            <span class="badge-cat">${agent.category}</span>
+            <span class="discover-icon">${escapeHtml(agent.icon)}</span>
+            <span class="badge-cat">${escapeHtml(agent.category)}</span>
           </div>
-          <h4>${agent.name}</h4>
-          <p class="discover-desc">${agent.description}</p>
+          <h4>${escapeHtml(agent.name)}</h4>
+          <p class="discover-desc">${escapeHtml(agent.description)}</p>
           <div class="discover-tools-list">
-            Tools: <code>${agent.tools.join("</code>, <code>")}</code>
+            Tools: <code>${agent.tools.map(t => escapeHtml(t)).join("</code>, <code>")}</code>
           </div>
           <div class="discover-card-action">
             ${isLinked 
               ? `<span class="linked-indicator">✓ Connected to Swarm</span>` 
-              : `<button class="btn-mount-agent" onclick="TripStewardApp.linkCatalogAgent('${agent.id}')">+ Mount to Orchestrator</button>`
+              : `<button class="btn-mount-agent" onclick="TripStewardApp.linkCatalogAgent('${escapeHtml(agent.id)}')">+ Mount to Orchestrator</button>`
             }
           </div>
         </div>
@@ -849,21 +860,21 @@ export class TripStewardApp {
     const d = TripStewardApp.vault.masterItinerary || {
       trip_code: "TS-PASS-7492",
       generated_at: new Date().toISOString(),
-      total_cost_usd: 515.00,
-      direct_savings_usd: 142.00,
+      total_cost_usd: 604.00,
+      direct_savings_usd: 161.00,
       trip_title: "San Francisco Autumn Waterfront Retreat",
       destination: "San Francisco, CA",
       dates: "Nov 27 – Nov 29, 2026 (2 Nights)",
       itinerary_highlights: [
-        "HarborView Hotel: Deluxe Bay-View Queen (2 Nights @ $185/night = $370)",
-        "CityGlide Transfer: Executive EV Sedan from SFO ($45)",
-        "MetroPass Experience: 2x Sunset Catamaran Sailing Passes ($100)"
+        "HarborView Hotel: Deluxe Bay-View Queen (2 Nights @ $189/night = $378)",
+        "CityGlide Transfer: Executive EV Sedan from SFO ($68)",
+        "MetroPass Experience: 2x Sunset Catamaran Sailing Passes ($158)"
       ],
       concierge_notes: "Direct provider rates confirmed. Instant digital mobile passes saved."
     };
 
     const content = `=====================================================
-VOYAGER MASTER DIGITAL TRAVEL PASS
+TRIPSTEWARD MASTER DIGITAL TRAVEL PASS
 Pass Code: ${d.trip_code || "TS-PASS-7492"}
 Generated: ${new Date(d.generated_at).toLocaleString()}
 Direct Provider Total: $${d.total_cost_usd.toFixed(2)} USD
@@ -892,7 +903,7 @@ Zero 3rd-Party Markups • 100% In-Browser Privacy
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Voyager_Travel_Pass_${(d.trip_code || "TS_PASS").replace(/[^a-zA-Z0-9]/g, "_")}.txt`;
+    a.download = `TripSteward_Travel_Pass_${(d.trip_code || "TS_PASS").replace(/[^a-zA-Z0-9]/g, "_")}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }

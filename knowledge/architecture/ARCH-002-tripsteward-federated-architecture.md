@@ -49,6 +49,5 @@ Traditional online travel agencies (OTAs) act as walled-garden aggregators charg
 ## Related Items
 - `knowledge/index.yaml`
 - `PROD-001`: Open Agentic Web Challenge Specification & Submission Protocol
-- `ARCH-001`: CuraPilot Zero-Leakage Multi-Specialist Consensus Architecture
 - `DEV-001`: In-Browser Runtime, Site Actions & Otari BYOK Standards
 - `DEV-002`: Production VM Deployment & Reverse Proxy Architecture
