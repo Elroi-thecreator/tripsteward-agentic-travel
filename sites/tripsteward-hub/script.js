@@ -115,14 +115,26 @@ function base64ToBuffer(base64) {
   return Buffer.from(base64, "base64");
 }
 
+function getApiEndpoint(path) {
+  const cleanPath = path.replace(/^\//, "");
+  if (typeof window !== "undefined" && window.location) {
+    const p = window.location.pathname;
+    if (p.includes("/tripsteward")) {
+      return `/tripsteward/${cleanPath}`;
+    }
+  }
+  return `/${cleanPath}`;
+}
+
 async function signActionReceipt(payload, options = {}) {
   const kid = options.kid || "harborview-key-1";
   const provider = options.provider || "HarborView Boutique Hotel";
 
-  // 1. In browser, use server-side signing endpoint if available to ensure strict non-repudiation
+  // 1. In browser, use server-side signing endpoint with subpath awareness to ensure strict non-repudiation
   if (typeof fetch === "function") {
     try {
-      const res = await fetch("/api/sign-receipt", {
+      const endpoint = getApiEndpoint("api/sign-receipt");
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payload, kid, provider }),
@@ -789,6 +801,25 @@ export class TripStewardVault {
   async reserveHotelRoom(room) {
     const id = "HV-STAY-" + Math.floor(10000 + Math.random() * 90000);
     const cost = (room.nightly_rate_usd || 189) * (room.nights || 2);
+
+    // 1. Sync and lock room in shared inventory first
+    if (typeof fetch === "function") {
+      try {
+        await fetch(getApiEndpoint("api/inventory"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "hold_room",
+            room_id: id,
+            guest: room.guest_names || this.activeJourney?.traveler?.name || "Dr. Rachel Chen",
+            total_stay_cost: cost
+          }),
+          signal: AbortSignal.timeout(1500)
+        });
+      } catch {}
+    }
+
+    // 2. Request cryptographically verified receipt from server
     const receipt = await signActionReceipt({
       reservation_id: id,
       room_tier: room.room_tier || "Deluxe Bay-View Queen",
@@ -800,19 +831,6 @@ export class TripStewardVault {
       kid: "harborview-key-1",
       provider: "HarborView Boutique Hotel"
     });
-
-    // Sync with shared multi-visitor inventory API
-    if (typeof fetch === "function") {
-      fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "hold_room",
-          room_id: id,
-          guest: room.guest_names || "Dr. Rachel Chen"
-        })
-      }).catch(() => {});
-    }
 
     this.hotelReservation = {
       id,
@@ -831,11 +849,47 @@ export class TripStewardVault {
     };
   }
 
-  bookAirportTransfer(transfer) {
+  async bookAirportTransfer(transfer) {
+    const id = "CG-TRANS-" + Math.floor(10000 + Math.random() * 90000);
+    const fare = transfer.fare_usd || 68.00;
+
+    // 1. Sync and lock dispatch in shared fleet inventory first
+    if (typeof fetch === "function") {
+      try {
+        await fetch(getApiEndpoint("api/inventory"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "dispatch_ride",
+            transfer_id: id,
+            vehicle_class: transfer.vehicle_class || "Executive EV Sedan",
+            fare_usd: fare
+          }),
+          signal: AbortSignal.timeout(1500)
+        });
+      } catch {}
+    }
+
+    // 2. Request cryptographically verified receipt for CityGlide transfer
+    const receipt = await signActionReceipt({
+      transfer_id: id,
+      passenger_name: this.activeJourney?.traveler?.name || "Elena Rostova",
+      vehicle_class: transfer.vehicle_class || "Executive EV Sedan",
+      driver: "Marcus Vance (Lucid Air Grand Touring #01)",
+      pickup_location: transfer.pickup_location || "SFO Terminal 2 - Baggage Carousel 4",
+      dropoff_location: transfer.dropoff_location || "HarborView Hotel, 450 Waterfront Blvd",
+      pickup_time: transfer.pickup_time || "5:00 PM (UA 482 flight buffer)",
+      fare_usd: fare
+    }, {
+      kid: "cityglide-key-1",
+      provider: "CityGlide Autonomous Fleet"
+    });
+
     this.airportTransfer = {
-      id: "CG-TRANS-" + Math.floor(10000 + Math.random() * 90000),
+      id,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "DISPATCHED_ON_NETWORK",
+      receipt,
       ...transfer
     };
     try {
@@ -851,8 +905,9 @@ export class TripStewardVault {
             pickup_location: transfer.pickup_location || "SFO Terminal 2 - Baggage Carousel 4",
             dropoff_location: transfer.dropoff_location || "HarborView Hotel, 450 Waterfront Blvd",
             pickup_time: transfer.pickup_time || "5:00 PM (UA 482 flight buffer)",
-            fare_usd: transfer.fare_usd || 68.00,
+            fare_usd: fare,
             status: "CONFIRMED_DISPATCHED",
+            receipt,
             created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
         });
@@ -863,16 +918,54 @@ export class TripStewardVault {
     return {
       ok: true,
       transfer_booking_id: this.airportTransfer.id,
-      fare_usd: transfer.fare_usd,
+      fare_usd: fare,
+      receipt,
       message: `CityGlide ${transfer.vehicle_class} transfer scheduled for ${transfer.pickup_time}.`
     };
   }
 
-  bookCityExperience(exp) {
+  async bookCityExperience(exp) {
+    const id = "MP-PASS-" + Math.floor(10000 + Math.random() * 90000);
+    const tickets = exp.tickets_count || 2;
+    const price = exp.total_price_usd || 158.00;
+
+    // 1. Sync and lock pass in shared experiences inventory first
+    if (typeof fetch === "function") {
+      try {
+        await fetch(getApiEndpoint("api/inventory"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "issue_pass",
+            pass_code: id,
+            title: exp.experience_name || "Golden Gate Sunset Catamaran Cruise",
+            tickets,
+            total_price_usd: price
+          }),
+          signal: AbortSignal.timeout(1500)
+        });
+      } catch {}
+    }
+
+    // 2. Request cryptographically verified receipt for MetroPass voucher
+    const receipt = await signActionReceipt({
+      pass_code: id,
+      experience_id: "EXP-SF-01",
+      title: exp.experience_name || "Golden Gate Sunset Catamaran Cruise",
+      attendee_name: this.activeJourney?.traveler?.name || "Elena Rostova",
+      date: "Saturday, Nov 28",
+      tickets,
+      total_price_usd: price
+    }, {
+      kid: "metropass-key-1",
+      provider: "MetroPass Experiences"
+    });
+
     this.cityExperience = {
-      id: "MP-PASS-" + Math.floor(10000 + Math.random() * 90000),
+      id,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "CONFIRMED_VOUCHER_ISSUED",
+      receipt,
       ...exp
     };
     try {
@@ -887,9 +980,10 @@ export class TripStewardVault {
             attendee_name: this.activeJourney?.traveler?.name || "Elena Rostova",
             date: "Saturday, Nov 28",
             scheduled_slot: exp.scheduled_slot || "6:00 PM - 8:00 PM",
-            tickets: exp.tickets_count || 2,
-            total_price_usd: exp.total_price_usd || 158.00,
+            tickets,
+            total_price_usd: price,
             status: "CONFIRMED_ISSUED",
+            receipt,
             qr_code: "QR-" + this.cityExperience.id,
             issued_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }
@@ -901,8 +995,9 @@ export class TripStewardVault {
     return {
       ok: true,
       experience_pass_id: this.cityExperience.id,
-      total_price_usd: exp.total_price_usd,
-      message: `MetroPass confirmed ${exp.tickets_count}x tickets for '${exp.experience_name}'.`
+      total_price_usd: price,
+      receipt,
+      message: `MetroPass confirmed ${tickets}x tickets for '${exp.experience_name}'.`
     };
   }
 
@@ -1527,23 +1622,27 @@ export class TripStewardApp {
 
   static quickBookTransfer() {
     const t = TripStewardApp.vault.activeJourney;
+    const isSeattle = t.destination.includes("Seattle");
+    const isAustin = t.destination.includes("Austin");
     TripStewardApp.vault.bookAirportTransfer({
       pickup_location: t.flight_details,
-      dropoff_location: "HarborView Hotel, 450 Waterfront Blvd",
-      vehicle_class: "Executive EV Sedan (Tesla Model S)",
-      pickup_time: "5:00 PM (Flight buffer +30m)",
+      dropoff_location: isSeattle ? "HarborView Hotel, 100 Alaskan Way, Seattle" : (isAustin ? "HarborView Hotel, 208 Barton Springs Rd, Austin" : "HarborView Hotel, 450 Waterfront Blvd, San Francisco"),
+      vehicle_class: "Executive EV Sedan (Lucid Air / Tesla Model S)",
+      pickup_time: isSeattle ? "4:15 PM (DL 1194 flight buffer +30m)" : (isAustin ? "2:45 PM (WN 2042 flight buffer +30m)" : "5:00 PM (UA 482 flight buffer +30m)"),
       fare_usd: 68.00
     });
   }
 
   static quickBookExperience() {
     const t = TripStewardApp.vault.activeJourney;
+    const isSeattle = t.destination.includes("Seattle");
+    const isAustin = t.destination.includes("Austin");
     TripStewardApp.vault.bookCityExperience({
-      experience_name: "Golden Gate Sunset Catamaran Cruise",
-      scheduled_slot: "Saturday, 5:45 PM – 7:30 PM",
+      experience_name: isSeattle ? "Puget Sound Islands Catamaran Sail" : (isAustin ? "Lady Bird Lake Sunset Kayak & Bat Tour" : "Golden Gate Sunset Catamaran Cruise"),
+      scheduled_slot: isSeattle ? "Saturday, 5:30 PM – 7:30 PM" : (isAustin ? "Saturday, 6:00 PM – 8:00 PM" : "Saturday, 5:45 PM – 7:30 PM"),
       tickets_count: t.traveler.party_size,
       total_price_usd: 158.00,
-      special_notes: "Boarding at Pier 39, Marina Gate B"
+      special_notes: isSeattle ? "Boarding at Pier 55, Seattle Waterfront" : (isAustin ? "Meeting at Congress Ave Bridge" : "Boarding at Pier 39, Marina Gate B")
     });
   }
 
@@ -1607,6 +1706,52 @@ export class TripStewardApp {
     const passDates = document.querySelector("#pass-dates");
     if (passCity) passCity.textContent = t.destination.split(",")[0];
     if (passDates) passDates.textContent = t.dates;
+
+    // Dynamic city labels and addresses across middle provider cards
+    const isSeattle = t.destination.includes("Seattle");
+    const isAustin = t.destination.includes("Austin");
+
+    const hotelAddr = document.querySelector("#hotel-card-address");
+    const transferAddr = document.querySelector("#transfer-card-address");
+    const telemTitle = document.querySelector("#transfer-telemetry-title");
+    const telemDesc = document.querySelector("#transfer-telemetry-desc");
+    const expTitle = document.querySelector("#experience-card-title");
+    const expAddr = document.querySelector("#experience-card-address");
+    const expDesc = document.querySelector("#experience-card-desc");
+    const chipTransfer = document.querySelector("#chip-book-transfer");
+    const chipExp = document.querySelector("#chip-book-experience");
+
+    if (isSeattle) {
+      if (hotelAddr) hotelAddr.textContent = "100 Alaskan Way, Elliott Bay District, Seattle, WA";
+      if (transferAddr) transferAddr.textContent = "SEA Airport Curbside ➔ HarborView Hotel";
+      if (telemTitle) telemTitle.textContent = "Flight DL 1194 Arrival Tracking Active";
+      if (telemDesc) telemDesc.innerHTML = "Scheduled landing: 3:45 PM. Automatic <strong>+30 min baggage buffer</strong> applied. Chauffeur curbside meet time set to <strong>4:15 PM – 4:30 PM</strong>.";
+      if (expTitle) expTitle.textContent = "Puget Sound Islands Catamaran Sail";
+      if (expAddr) expAddr.textContent = "Pier 55, Seattle Waterfront • Saturday, 5:30 PM – 7:30 PM";
+      if (expDesc) expDesc.textContent = "Sail through Puget Sound with breathtaking sunset views of Mount Rainier and the Seattle skyline. Includes Pacific Northwest craft beverages.";
+      if (chipTransfer) chipTransfer.textContent = "🚗 Schedule SEA Pickup";
+      if (chipExp) chipExp.textContent = "⛵ Book Puget Sail";
+    } else if (isAustin) {
+      if (hotelAddr) hotelAddr.textContent = "208 Barton Springs Rd, South Congress District, Austin, TX";
+      if (transferAddr) transferAddr.textContent = "AUS Airport Curbside ➔ HarborView Hotel";
+      if (telemTitle) telemTitle.textContent = "Flight WN 2042 Arrival Tracking Active";
+      if (telemDesc) telemDesc.innerHTML = "Scheduled landing: 2:15 PM. Automatic <strong>+30 min baggage buffer</strong> applied. Chauffeur curbside meet time set to <strong>2:45 PM – 3:00 PM</strong>.";
+      if (expTitle) expTitle.textContent = "Lady Bird Lake Sunset Kayak & Bat Tour";
+      if (expAddr) expAddr.textContent = "Congress Ave Bridge • Saturday, 6:00 PM – 8:00 PM";
+      if (expDesc) expDesc.textContent = "Paddle along Lady Bird Lake at dusk to witness Austin's famous bat colony emergence with guided gear and local craft refreshments.";
+      if (chipTransfer) chipTransfer.textContent = "🚗 Schedule AUS Pickup";
+      if (chipExp) chipExp.textContent = "🦇 Book Bat Tour";
+    } else {
+      if (hotelAddr) hotelAddr.textContent = "450 Waterfront Blvd, Embarcadero District, San Francisco, CA";
+      if (transferAddr) transferAddr.textContent = "SFO Terminal 2 Curbside ➔ HarborView Hotel";
+      if (telemTitle) telemTitle.textContent = "Flight UA 482 Arrival Tracking Active";
+      if (telemDesc) telemDesc.innerHTML = "Scheduled landing: 4:30 PM. Automatic <strong>+30 min baggage buffer</strong> applied. Chauffeur curbside meet time set to <strong>5:00 PM – 5:15 PM</strong>.";
+      if (expTitle) expTitle.textContent = "Golden Gate Sunset Catamaran Cruise";
+      if (expAddr) expAddr.textContent = "Pier 39, Marina Gate B • Saturday, 5:45 PM – 7:30 PM";
+      if (expDesc) expDesc.textContent = "Sail past Alcatraz and beneath the Golden Gate Bridge aboard an executive 55ft catamaran. Includes California champagne, craft beers, and artisan cheese pairings.";
+      if (chipTransfer) chipTransfer.textContent = "🚗 Schedule SFO Pickup";
+      if (chipExp) chipExp.textContent = "⛵ Book Sunset Sail";
+    }
 
     const roomContainer = document.querySelector("#room-inventory-list");
     if (roomContainer) {

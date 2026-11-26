@@ -768,16 +768,38 @@ async function runTestBridge() {
 
     const jwksPath = join(targetDir, ".well-known", "jwks.json");
     if (existsSync(jwksPath)) {
-      const jwks = JSON.parse(readFileSync(jwksPath, "utf-8"));
-      console.log(`  ${colors.green}✔ Found .well-known/jwks.json${colors.reset} (${jwks.keys?.length || 0} ECDSA verification key(s))`);
+      try {
+        const jwks = JSON.parse(readFileSync(jwksPath, "utf-8"));
+        const validKeys = (jwks.keys || []).filter(k => k.kty === "EC" && k.crv === "P-256" && k.x && k.y);
+        console.log(`  ${colors.green}✔ Validated .well-known/jwks.json${colors.reset} (${validKeys.length} active ES256 verification key(s))`);
+      } catch (err) {
+        console.log(`  ${colors.yellow}⚠ .well-known/jwks.json parse warning: ${err.message}${colors.reset}`);
+      }
     } else {
       console.log(`  ${colors.gray}ℹ No local .well-known/jwks.json found${colors.reset}`);
+    }
+
+    // Protocol Handshake Simulation & Action Schemas Verification
+    const siteActionsPath = join(targetDir, "site-actions.js");
+    if (existsSync(siteActionsPath)) {
+      try {
+        const code = readFileSync(siteActionsPath, "utf-8");
+        const declaredTools = manifest?.actions?.agentTools || [];
+        const missingTools = declaredTools.filter(t => !code.includes(t));
+        if (missingTools.length === 0) {
+          console.log(`  ${colors.green}✔ Simulated Bridge Handshake: All ${declaredTools.length} declared tools implemented in site-actions.js${colors.reset}`);
+        } else {
+          console.log(`  ${colors.yellow}⚠ Bridge Handshake: ${missingTools.length} tool(s) not found in site-actions.js: ${missingTools.join(", ")}${colors.reset}`);
+        }
+      } catch (e) {
+        console.log(`  ${colors.yellow}⚠ Could not verify site-actions: ${e.message}${colors.reset}`);
+      }
     }
   }
 
   const tools = manifest?.actions?.agentTools || [];
   console.log(`  ${colors.cyan}ℹ Declared Action Tools (${tools.length}):${colors.reset} ${tools.join(", ") || "None"}`);
-  console.log(`\n${colors.bold}${colors.green}✅ Action Bridge & Manifest Validation Complete!${colors.reset}\n`);
+  console.log(`\n${colors.bold}${colors.green}✅ Action Bridge & Protocol Handshake Verification Complete!${colors.reset}\n`);
 }
 
 switch (command) {

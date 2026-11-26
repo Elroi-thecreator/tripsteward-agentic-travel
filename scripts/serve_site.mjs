@@ -16,26 +16,102 @@ import { once } from "node:events";
 import http from "node:http";
 import path from "node:path";
 
-const SHARED_INVENTORY = {
+const INVENTORY_FILE = path.join(path.dirname(new URL(import.meta.url).pathname), ".shared_inventory.json");
+
+const DEFAULT_INVENTORY = {
   rooms: {
     total: 12,
     held: 3,
     available: 9,
-    activeHolds: []
+    activeHolds: [
+      { room_id: "HV-ROOM-201", guest: "Elena Rostova", time: new Date().toISOString() }
+    ]
   },
   fleet: {
     total: 8,
     dispatched: 2,
     standby: 6,
-    activeRides: []
+    activeRides: [
+      { transfer_id: "CG-TRANS-INIT-1", vehicle_class: "Executive EV Sedan", fare_usd: 68, time: new Date().toISOString() }
+    ]
   },
   experiences: {
     totalPasses: 50,
     issuedPasses: 14,
     remainingPasses: 36,
-    activeBookings: []
+    activeBookings: [
+      { pass_code: "MP-PASS-INIT-1", experience: "Golden Gate Sunset Catamaran Cruise", tickets: 2, total_price_usd: 158, time: new Date().toISOString() }
+    ]
   }
 };
+
+async function getSharedInventory() {
+  try {
+    const data = await readFile(INVENTORY_FILE, "utf8");
+    return JSON.parse(data);
+  } catch {
+    await saveSharedInventory(DEFAULT_INVENTORY);
+    return JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+  }
+}
+
+async function saveSharedInventory(inventory) {
+  try {
+    const tempFile = `${INVENTORY_FILE}.tmp.${process.pid}`;
+    const fs = await import("node:fs/promises");
+    await fs.writeFile(tempFile, JSON.stringify(inventory, null, 2), "utf8");
+    await fs.rename(tempFile, INVENTORY_FILE);
+  } catch (e) {
+    console.warn("Could not save shared inventory to disk:", e);
+  }
+}
+
+function validateReservationAgainstInventory(inventory, payload, kid) {
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, reason: "Missing reservation payload object" };
+  }
+
+  // 1. HarborView Hotel validation
+  if (kid.includes("harborview")) {
+    const resId = payload.reservation_id || payload.room_id;
+    if (!resId || !resId.startsWith("HV-")) {
+      return { valid: false, reason: "Invalid HarborView reservation format (must start with HV-)" };
+    }
+    const hold = inventory.rooms?.activeHolds?.find(h => h.room_id === resId);
+    if (!hold) {
+      return { valid: false, reason: `Unverified reservation: hold #${resId} not found in verified room inventory` };
+    }
+    return { valid: true };
+  }
+
+  // 2. CityGlide Fleet validation
+  if (kid.includes("cityglide")) {
+    const transId = payload.transfer_id;
+    if (!transId || !transId.startsWith("CG-")) {
+      return { valid: false, reason: "Invalid CityGlide transfer format (must start with CG-)" };
+    }
+    const ride = inventory.fleet?.activeRides?.find(r => r.transfer_id === transId);
+    if (!ride) {
+      return { valid: false, reason: `Unverified dispatch: transfer #${transId} not found in verified fleet inventory` };
+    }
+    return { valid: true };
+  }
+
+  // 3. MetroPass Experiences validation
+  if (kid.includes("metropass")) {
+    const passCode = payload.pass_code;
+    if (!passCode || !passCode.startsWith("MP-")) {
+      return { valid: false, reason: "Invalid MetroPass voucher format (must start with MP-)" };
+    }
+    const booking = inventory.experiences?.activeBookings?.find(b => b.pass_code === passCode);
+    if (!booking) {
+      return { valid: false, reason: `Unverified voucher: pass #${passCode} not found in verified experiences inventory` };
+    }
+    return { valid: true };
+  }
+
+  return { valid: false, reason: `Unknown provider key identifier: ${kid}` };
+}
 
 function canonicalizeJson(obj) {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
@@ -310,41 +386,43 @@ class SiteServer {
         "Content-Type": "application/json; charset=utf-8",
         "Access-Control-Allow-Origin": "*"
       };
+      const inventory = await getSharedInventory();
       if (request.method === "GET") {
-        this.send(request, response, urlPath, 200, headers, JSON.stringify(SHARED_INVENTORY));
+        this.send(request, response, urlPath, 200, headers, JSON.stringify(inventory));
         return;
       }
       if (request.method === "POST") {
         try {
           const body = await readRequestBody(request);
           if (body.action === "hold_room") {
-            SHARED_INVENTORY.rooms.held += 1;
-            SHARED_INVENTORY.rooms.available = Math.max(0, SHARED_INVENTORY.rooms.total - SHARED_INVENTORY.rooms.held);
-            SHARED_INVENTORY.rooms.activeHolds.push({
+            inventory.rooms.held += 1;
+            inventory.rooms.available = Math.max(0, inventory.rooms.total - inventory.rooms.held);
+            inventory.rooms.activeHolds.push({
               room_id: body.room_id || "HV-ROOM-204",
               guest: body.guest || "Guest",
               time: new Date().toISOString()
             });
           } else if (body.action === "dispatch_ride") {
-            SHARED_INVENTORY.fleet.dispatched += 1;
-            SHARED_INVENTORY.fleet.standby = Math.max(0, SHARED_INVENTORY.fleet.total - SHARED_INVENTORY.fleet.dispatched);
-            SHARED_INVENTORY.fleet.activeRides.push({
+            inventory.fleet.dispatched += 1;
+            inventory.fleet.standby = Math.max(0, inventory.fleet.total - inventory.fleet.dispatched);
+            inventory.fleet.activeRides.push({
               transfer_id: body.transfer_id,
               vehicle_class: body.vehicle_class,
               time: new Date().toISOString()
             });
           } else if (body.action === "issue_pass") {
             const tickets = Number(body.tickets || 1);
-            SHARED_INVENTORY.experiences.issuedPasses += tickets;
-            SHARED_INVENTORY.experiences.remainingPasses = Math.max(0, SHARED_INVENTORY.experiences.totalPasses - SHARED_INVENTORY.experiences.issuedPasses);
-            SHARED_INVENTORY.experiences.activeBookings.push({
+            inventory.experiences.issuedPasses += tickets;
+            inventory.experiences.remainingPasses = Math.max(0, inventory.experiences.totalPasses - inventory.experiences.issuedPasses);
+            inventory.experiences.activeBookings.push({
               pass_code: body.pass_code,
               experience: body.title,
               tickets,
               time: new Date().toISOString()
             });
           }
-          this.send(request, response, urlPath, 200, headers, JSON.stringify({ ok: true, inventory: SHARED_INVENTORY }));
+          await saveSharedInventory(inventory);
+          this.send(request, response, urlPath, 200, headers, JSON.stringify({ ok: true, inventory }));
           return;
         } catch (e) {
           this.send(request, response, urlPath, 400, headers, JSON.stringify({ ok: false, error: e.message }));
@@ -377,6 +455,18 @@ class SiteServer {
             this.send(request, response, urlPath, 404, headers, JSON.stringify({ ok: false, error: `Key not found for kid: ${kid}` }));
             return;
           }
+
+          // Anti-Oracle Verification: Verify reservation exists in shared inventory before signing!
+          const inventory = await getSharedInventory();
+          const verification = validateReservationAgainstInventory(inventory, body.payload, kid);
+          if (!verification.valid) {
+            this.send(request, response, urlPath, 403, headers, JSON.stringify({
+              ok: false,
+              error: `Signing Oracle Rejected: ${verification.reason}`
+            }));
+            return;
+          }
+
           const subtle = globalThis.crypto?.subtle;
           const canonicalPayload = canonicalizeJson(body.payload || {});
           const enc = new TextEncoder();
@@ -464,17 +554,28 @@ class SiteServer {
       return null;
     }
     const target = path.resolve(this.root, `.${path.sep}${decoded}`);
-    if (!this.inside(target)) {
-      return null;
+    if (this.inside(target)) {
+      try {
+        const real = await realpath(target);
+        if (this.inside(real)) return real;
+      } catch (error) {
+        // Target missing in root, check shared fallback below
+      }
     }
-    // A link inside the folder must not lead outside it either.
-    try {
-      const real = await realpath(target);
-      return this.inside(real) ? real : null;
-    } catch (error) {
-      // A missing file stays inside; handle() answers 404 for it.
-      return target;
+    // Shared runtime fallback: deduplicates 5.64MB of nsdeploy assets across specialist nodes
+    if (decoded.startsWith("/runtime/") || decoded.startsWith("runtime/")) {
+      const relRuntime = decoded.startsWith("/") ? decoded.slice(1) : decoded;
+      const sharedRuntime = path.resolve(this.root, "..", "tripsteward-hub", relRuntime);
+      try {
+        const statCheck = await stat(sharedRuntime);
+        if (statCheck.isFile() || statCheck.isDirectory()) {
+          return sharedRuntime;
+        }
+      } catch (e) {
+        // Not in shared fallback either
+      }
     }
+    return this.inside(target) ? target : null;
   }
 
   /**

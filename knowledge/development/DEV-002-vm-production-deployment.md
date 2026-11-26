@@ -6,7 +6,7 @@ type: "development"
 title: "Production VM Deployment & Reverse Proxy Architecture"
 domain: "development"
 status: "APPROVED"
-version: "1.2.0"
+version: "1.3.0"
 ---
 
 ## Rule
@@ -23,22 +23,17 @@ TripSteward is deployed on the production VM without disturbing any pre-existing
      - `127.0.0.1:8884`: `sites/alpinetrail-node` (AlpineTrail Expeditions Node)
      - `127.0.0.1:8885`: `sites/luggagefly-node` (LuggageFly Logistics Node)
      - `127.0.0.1:8886`: `sites/travelshield-node` (TravelShield Protection Node)
-2. **Nginx Reverse Proxy & Multi-Domain SSL Integration**:
+2. **Nginx Reverse Proxy & Subpath SSL Integration**:
    - Uses `/etc/nginx/snippets/curapilot.conf` included inside `/etc/nginx/sites-available/default`.
-   - Dedicated server blocks:
-     - `server_name pnrs.is-a.dev`: Serves FastAPI Holy Bible at root `/` (port 8000), and proxies `/tripsteward/`, `/rides/`, `/experiences/`, `/dining/`, `/alpine/`, `/luggage/`, and `/insurance/` to the local federated nodes.
-     - `server_name elroi.js.org`: Custom JS.ORG domain dedicated to this app. Automatically redirects root `/` (301) to `/tripsteward/`, and serves all federated agent nodes (`/tripsteward/`, `/rides/`, `/experiences/`, `/dining/`, `/alpine/`, `/luggage/`, `/insurance/`).
-     - Port 80 HTTP server block cleanly redirects (301) all traffic for both `pnrs.is-a.dev` and `elroi.js.org` to `https://$host$request_uri`.
+   - Host `server_name pnrs.is-a.dev`: Serves FastAPI Holy Bible at root `/` (port 8000), and proxies `/tripsteward/`, `/rides/`, `/experiences/`, `/dining/`, `/alpine/`, `/luggage/`, and `/insurance/` to the local federated nodes.
+   - Port 80 HTTP server block cleanly redirects (301) all traffic for `pnrs.is-a.dev` to `https://$host$request_uri`.
    - Enforces `proxy_hide_header Access-Control-Allow-Origin;` before `add_header Access-Control-Allow-Origin * always;` across all proxied locations to guarantee modern browsers receive exactly one CORS header without duplicates.
-   - Static server runners (`scripts/serve_site.mjs`) include `/.well-known/agent.json` in `publicPaths()` alongside `agent-manifest.json` and `links.json` for A2A compatibility.
-3. **JS.ORG Subdomain Registry & CNAME Verification**:
-   - Root-level `CNAME` file containing `elroi.js.org` tracked in version control for domain ownership verification.
-   - Registered via Pull Request on `js-org/js.org` (PR #13046) mapping `"elroi": "pnrs.is-a.dev"`.
+   - Static server runners (`scripts/serve_site.mjs`) include `/.well-known/agent.json` and `/.well-known/jwks.json` in `publicPaths()` alongside `agent-manifest.json` and `links.json` for A2A and cryptographic non-repudiation compatibility.
 
 ## Do
 - Use loopback bindings (`127.0.0.1`) for local node servers.
 - Ensure all static and declarative agent artifacts return `Access-Control-Allow-Origin: *`.
-- Route domain-specific roots (such as `elroi.js.org` -> `/tripsteward/`) using isolated server blocks so root workloads on other domains remain undisturbed.
+- Route federated agent nodes cleanly using dedicated subpaths (`/tripsteward/`, `/rides/`, `/experiences/`, etc.) so root workloads on port 8000 remain undisturbed.
 - Maintain systemd auto-restart (`Restart=always`, `RestartSec=5`) for persistent uptime.
 
 ## Dont
@@ -47,7 +42,7 @@ TripSteward is deployed on the production VM without disturbing any pre-existing
 - Do NOT modify root `/` location block on `pnrs.is-a.dev` which serves existing applications.
 
 ## Reason
-Running the agent cluster via a dedicated systemd service proxied through isolated Nginx server blocks guarantees 100% isolation, preventing interference with other production services while providing public SSL/HTTPS access for both the primary VM host and custom JS.ORG subdomains.
+Running the agent cluster via a dedicated systemd service proxied through subpath reverse proxy blocks guarantees 100% isolation, preventing interference with other production services while providing public SSL/HTTPS access across all federated agent nodes.
 
 ## Related Items
 - `knowledge/index.yaml`

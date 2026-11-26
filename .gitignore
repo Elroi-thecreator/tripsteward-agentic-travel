@@ -2,3 +2,9 @@ node_modules/
 .DS_Store
 *.log
 *.zip
+scripts/provider_keys.json
+*provider_keys.json
+.provider_keys.json
+scripts/.shared_inventory.json
+.shared_inventory.json
+*.local.json

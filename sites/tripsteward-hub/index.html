@@ -153,7 +153,7 @@
           <div class="card-title-row">
             <div>
               <h3>HarborView Waterfront Hotel</h3>
-              <p class="card-address">450 Waterfront Blvd, Embarcadero District</p>
+              <p class="card-address" id="hotel-card-address">450 Waterfront Blvd, Embarcadero District</p>
             </div>
             <div class="card-price-pill">
               <span class="price-amount">$189</span>
@@ -196,7 +196,7 @@
           <div class="card-title-row">
             <div>
               <h3>Executive EV Airport Chauffeur</h3>
-              <p class="card-address">SFO Terminal 2 Curbside ➔ HarborView Hotel</p>
+              <p class="card-address" id="transfer-card-address">SFO Terminal 2 Curbside ➔ HarborView Hotel</p>
             </div>
             <div class="card-price-pill">
               <span class="price-amount">$68</span>
@@ -209,8 +209,8 @@
           <div class="telemetry-callout">
             <div class="telemetry-icon">⚡</div>
             <div class="telemetry-info">
-              <div class="telemetry-title">Flight UA 482 Arrival Tracking Active</div>
-              <div class="telemetry-desc">Scheduled landing: 4:30 PM. Automatic <strong>+30 min baggage buffer</strong> applied. Chauffeur curbside meet time set to <strong>5:00 PM – 5:15 PM</strong>.</div>
+              <div class="telemetry-title" id="transfer-telemetry-title">Flight UA 482 Arrival Tracking Active</div>
+              <div class="telemetry-desc" id="transfer-telemetry-desc">Scheduled landing: 4:30 PM. Automatic <strong>+30 min baggage buffer</strong> applied. Chauffeur curbside meet time set to <strong>5:00 PM – 5:15 PM</strong>.</div>
             </div>
           </div>
 
@@ -250,8 +250,8 @@
         <div class="card-content">
           <div class="card-title-row">
             <div>
-              <h3>Golden Gate Sunset Catamaran Cruise</h3>
-              <p class="card-address">Pier 39, Marina Gate B • Saturday, 5:45 PM – 7:30 PM</p>
+              <h3 id="experience-card-title">Golden Gate Sunset Catamaran Cruise</h3>
+              <p class="card-address" id="experience-card-address">Pier 39, Marina Gate B • Saturday, 5:45 PM – 7:30 PM</p>
             </div>
             <div class="card-price-pill">
               <span class="price-amount">$79</span>
@@ -260,7 +260,7 @@
             </div>
           </div>
 
-          <p class="experience-desc">Sail past Alcatraz and beneath the Golden Gate Bridge aboard an executive 55ft catamaran. Includes California champagne, craft beers, and artisan cheese pairings.</p>
+          <p class="experience-desc" id="experience-card-desc">Sail past Alcatraz and beneath the Golden Gate Bridge aboard an executive 55ft catamaran. Includes California champagne, craft beers, and artisan cheese pairings.</p>
 
           <div class="perks-row">
             <span class="perk-chip">✓ 2x VIP Scannable Passes</span>
@@ -409,8 +409,8 @@
         <div class="chat-chips-row">
           <button class="prompt-chip" onclick="TripStewardApp.vault.runDemoSimulation()">✦ Orchestrate All Connected Agents</button>
           <button class="prompt-chip" onclick="TripStewardApp.quickHoldHotel()">🏨 Hold Bay-View Room</button>
-          <button class="prompt-chip" onclick="TripStewardApp.quickBookTransfer()">🚗 Schedule SFO Pickup</button>
-          <button class="prompt-chip" onclick="TripStewardApp.quickBookExperience()">⛵ Book Sunset Sail</button>
+          <button id="chip-book-transfer" class="prompt-chip" onclick="TripStewardApp.quickBookTransfer()">🚗 Schedule SFO Pickup</button>
+          <button id="chip-book-experience" class="prompt-chip" onclick="TripStewardApp.quickBookExperience()">⛵ Book Sunset Sail</button>
         </div>
       </div>
     </aside>

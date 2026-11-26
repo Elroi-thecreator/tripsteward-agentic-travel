@@ -89,14 +89,26 @@ function bufferToBase64(buffer) {
   return typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
 }
 
+function getApiEndpoint(path) {
+  const cleanPath = path.replace(/^\//, "");
+  if (typeof window !== "undefined" && window.location) {
+    const p = window.location.pathname;
+    if (p.includes("/rides")) {
+      return `/rides/${cleanPath}`;
+    }
+  }
+  return `/${cleanPath}`;
+}
+
 async function signActionReceipt(payload, options = {}) {
   const kid = options.kid || "cityglide-key-1";
   const provider = options.provider || "CityGlide Autonomous Fleet";
 
-  // 1. In browser, use server-side signing endpoint if available to ensure strict non-repudiation
+  // 1. In browser, use server-side signing endpoint with subpath awareness to ensure strict non-repudiation
   if (typeof fetch === "function") {
     try {
-      const res = await fetch("/api/sign-receipt", {
+      const endpoint = getApiEndpoint("api/sign-receipt");
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payload, kid, provider }),
@@ -319,6 +331,24 @@ export class CityGlideApp {
         created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
+      // 1. Sync and lock dispatch in shared inventory first
+      if (typeof fetch === "function") {
+        try {
+          await fetch(getApiEndpoint("api/inventory"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "dispatch_ride",
+              transfer_id: res.transfer_id,
+              vehicle_class: res.vehicle_class,
+              fare_usd: res.fare_usd
+            }),
+            signal: AbortSignal.timeout(1500)
+          });
+        } catch {}
+      }
+
+      // 2. Request cryptographically verified receipt from server
       const receipt = await signActionReceipt({
         transfer_id: res.transfer_id,
         passenger_name: res.passenger_name,
@@ -333,19 +363,6 @@ export class CityGlideApp {
         provider: "CityGlide Autonomous Fleet"
       });
       res.receipt = receipt;
-
-      // Sync with shared multi-visitor inventory API
-      if (typeof fetch === "function") {
-        fetch("/api/inventory", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "dispatch_ride",
-            transfer_id: res.transfer_id,
-            vehicle_class: res.vehicle_class
-          })
-        }).catch(() => {});
-      }
 
       this.reservations.unshift(res);
       try {
