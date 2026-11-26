@@ -6,7 +6,7 @@ type: "development"
 title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
 domain: "development"
 status: "APPROVED"
-version: "1.5.0"
+version: "1.6.0"
 ---
 
 ## Rule
@@ -29,8 +29,9 @@ All projects, nodes, and federated agent services in this repository and the bro
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) with fully hydrated parameter schemas dynamically imported from local `site-actions.js`.
    - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.6`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
-3. **Continuous Conformance & Automated Publishing**:
-   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite.
+3. **Continuous Conformance, End-to-End Testing & Automated Publishing**:
+   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite (127 checks total).
+   - `npm run test:e2e` & `npm run test:e2e:live` run the automated 38-check Playwright browser suite validating all buttons, modals, dynamic mount operations, and cryptographic signature verifications with 0 console errors.
    - All published nodes must pass `oaw validate` with 0 failures before deployment.
    - Automated GitHub Actions workflow (`.github/workflows/publish-npm.yml`) publishes the package to npm with cryptographic build provenance (`--provenance`) upon git release, tag push (`v*`), or manual workflow dispatch.
 

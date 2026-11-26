@@ -1949,19 +1949,46 @@ export class TripStewardApp {
       return receipt.publicKeyJwk;
     }
 
-    // 2. Query candidate /.well-known/jwks.json endpoints dynamically
-    const candidateUrls = [
-      "/.well-known/jwks.json",
-      "/tripsteward/.well-known/jwks.json",
-      "/rides/.well-known/jwks.json",
-      "/experiences/.well-known/jwks.json",
-      "http://localhost:8080/.well-known/jwks.json",
-      "http://localhost:8081/.well-known/jwks.json",
-      "http://localhost:8082/.well-known/jwks.json",
-      "http://localhost:8880/.well-known/jwks.json",
-      "http://localhost:8881/.well-known/jwks.json",
-      "http://localhost:8882/.well-known/jwks.json"
-    ];
+    // 2. Query candidate /.well-known/jwks.json endpoints dynamically based on active environment & key ID
+    const candidateUrls = [];
+    const origin = (typeof window !== "undefined" && window.location) ? window.location.origin : "";
+    const port = (typeof window !== "undefined" && window.location) ? window.location.port : "";
+    const host = (typeof window !== "undefined" && window.location) ? window.location.hostname : "127.0.0.1";
+
+    candidateUrls.push(getApiEndpoint(".well-known/jwks.json"));
+    candidateUrls.push("/.well-known/jwks.json");
+
+    if (receipt.kid.includes("cityglide")) {
+      candidateUrls.push("/rides/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/rides/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8081/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8881/.well-known/jwks.json`);
+    } else if (receipt.kid.includes("metropass")) {
+      candidateUrls.push("/experiences/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/experiences/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8082/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8882/.well-known/jwks.json`);
+    } else if (receipt.kid.includes("tablebespoke")) {
+      candidateUrls.push("/dining/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/dining/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8083/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8883/.well-known/jwks.json`);
+    } else if (receipt.kid.includes("alpinetrail")) {
+      candidateUrls.push("/alpine/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/alpine/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8084/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8884/.well-known/jwks.json`);
+    } else if (receipt.kid.includes("luggagefly")) {
+      candidateUrls.push("/luggage/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/luggage/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8085/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8885/.well-known/jwks.json`);
+    } else if (receipt.kid.includes("travelshield")) {
+      candidateUrls.push("/insurance/.well-known/jwks.json");
+      if (origin) candidateUrls.push(`${origin}/insurance/.well-known/jwks.json`);
+      if (port === "8080") candidateUrls.push(`http://${host}:8086/.well-known/jwks.json`);
+      if (port === "8880") candidateUrls.push(`http://${host}:8886/.well-known/jwks.json`);
+    }
 
     if (Array.isArray(TripStewardApp.peerNodes)) {
       for (const node of TripStewardApp.peerNodes) {

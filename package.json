@@ -7,6 +7,8 @@
     "start": "node scripts/serve_all.mjs",
     "test": "node tests/conformance_test.mjs && cd packages/open-agentic-web && npm test",
     "test:package": "cd packages/open-agentic-web && npm test",
+    "test:e2e": "node tests/e2e_browser_test.mjs",
+    "test:e2e:live": "node tests/e2e_browser_test.mjs --live",
     "lint:nodes": "node packages/open-agentic-web/bin/cli.mjs validate sites/tripsteward-hub sites/cityglide-node sites/metropass-node",
     "serve:hub": "node scripts/serve_site.mjs sites/tripsteward-hub --port 8080",
     "serve:rides": "node scripts/serve_site.mjs sites/cityglide-node --port 8081",
