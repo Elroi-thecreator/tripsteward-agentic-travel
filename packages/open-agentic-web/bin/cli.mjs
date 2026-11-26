@@ -15,7 +15,7 @@ import { validateFederation, validateManifest, validateNetwork, validateNode } f
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.1.5";
+let VERSION = "1.1.6";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;

@@ -6,14 +6,14 @@ type: "development"
 title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
 domain: "development"
 status: "APPROVED"
-version: "1.4.0"
+version: "1.5.0"
 ---
 
 ## Rule
 All projects, nodes, and federated agent services in this repository and the broader ecosystem should use the extracted, reusable `open-agentic-web` npm package for conformance verification, site action definition, cross-origin bridging, and dynamic federation:
 
 1. **Package Scope & Architecture**:
-   - Location: `packages/open-agentic-web` (v1.1.5)
+   - Location: `packages/open-agentic-web` (v1.1.6)
    - Zero external runtime dependencies: Built using standard Node.js built-ins (`node:fs`, `node:path`, `node:http`) and browser Web APIs (`MessageChannel`, `postMessage`, `fetch`, `AbortSignal`, `crypto.subtle`).
    - TypeScript definitions: Fully typed with `src/index.d.ts` exported via `"types"`.
    - Module Exports:
@@ -27,7 +27,7 @@ All projects, nodes, and federated agent services in this repository and the bro
    - `test-bridge [dir-or-url]`: Conformance probe testing live action bridge endpoints, message receiver contracts, declared tool schemas, and ECDSA JWKS key publication.
    - `dev [dir] [--port 3000]`: Boots a zero-dependency local static server with path-traversal containment, CORS headers, and an interactive browser test playground at `/playground` to test site actions and bridge handshakes before deployment.
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) with fully hydrated parameter schemas dynamically imported from local `site-actions.js`.
-   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.5`).
+   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.6`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
 3. **Continuous Conformance & Automated Publishing**:
    - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite.
