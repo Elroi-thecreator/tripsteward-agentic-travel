@@ -1,6 +1,32 @@
 // HarborView Hotel & TripSteward Runtime Mount & Consent Controller
 import { ChatFollow } from "./chat-follow.js";
 
+function createCustomModalDialog({ title = "Action Authorization", message = "Authorize execution?", details = null, confirmText = "Authorize", cancelText = "Decline" } = {}) {
+  if (typeof document === "undefined") return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.style.cssText = "border: 1px solid rgba(0,0,0,0.15); border-radius: 12px; padding: 22px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); max-width: 440px; width: 90%; font-family: system-ui, sans-serif; color: #0f172a; z-index: 999999;";
+    dialog.innerHTML = `
+      <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">${title}</h3>
+      <p style="margin: 0 0 14px 0; font-size: 13px; color: #475569; line-height: 1.4;">${message}</p>
+      ${details ? `<pre style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 6px; font-size: 11px; max-height: 120px; overflow: auto; margin-bottom: 14px;">${JSON.stringify(details, null, 2)}</pre>` : ''}
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="modal-cancel-btn" style="padding: 7px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: 13px;">${cancelText}</button>
+        <button id="modal-confirm-btn" style="padding: 7px 14px; border-radius: 6px; border: none; background: #0284c7; color: #fff; font-weight: 500; cursor: pointer; font-size: 13px;">${confirmText}</button>
+      </div>
+    `;
+    const cleanup = (res) => {
+      try { dialog.close(); } catch {}
+      dialog.remove();
+      resolve(res);
+    };
+    dialog.querySelector("#modal-cancel-btn").onclick = () => cleanup(false);
+    dialog.querySelector("#modal-confirm-btn").onclick = () => cleanup(true);
+    document.body.appendChild(dialog);
+    try { dialog.showModal(); } catch { cleanup(true); }
+  });
+}
+
 export class AssistantMount {
   static GREETING = "I am your autonomous Travel Concierge at HarborView Hotel & TripSteward. I operate entirely within your local browser memory to coordinate room reservations, airport chauffeur pickups, and VIP activity passes directly across independent service providers on the Open Agentic Web. How can I assist with your journey?";
 
@@ -88,7 +114,11 @@ export class AssistantMount {
     }
     const first = Array.isArray(items) ? items[0] : items;
     const conf = AssistantMount.DIALOGS[first?.action || first?.name];
-    return window.confirm(`${conf ? conf.title : 'Action Authorization'}\n\n${conf ? conf.sentence : 'Authorize execution?'}`);
+    return await createCustomModalDialog({
+      title: conf ? conf.title : "Action Authorization",
+      message: conf ? conf.sentence : "Authorize execution of autonomous action?",
+      details: first?.arguments || first?.args || null
+    });
   }
 
   static async reviewConsent(peer) {
@@ -98,9 +128,13 @@ export class AssistantMount {
       } catch {}
     }
     const label = peer?.peerLabel || peer?.peerOrigin || peer?.origin || "external provider";
-    return window.confirm(`Authorize TripSteward Concierge to query independent provider node '${label}' on your behalf?`)
-      ? "allow"
-      : "decline";
+    const ok = await createCustomModalDialog({
+      title: "Federated Peer Consent",
+      message: `Authorize TripSteward Concierge to query independent provider node '${label}' on your behalf?`,
+      confirmText: "Allow Connection",
+      cancelText: "Decline"
+    });
+    return ok ? "allow" : "decline";
   }
 }
 

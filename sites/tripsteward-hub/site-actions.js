@@ -16,6 +16,7 @@ export class SiteActions {
     actions.register(SiteActions.compileMasterItineraryAction());
     actions.register(SiteActions.discoverAgentNodesAction());
     actions.register(SiteActions.registerAgentNodeAction());
+    actions.register(SiteActions.solveItineraryConstraintsAction());
   }
 
   static getTripPreferencesAction() {
@@ -266,6 +267,107 @@ export class SiteActions {
       },
       execute: async (args) => {
         return TripStewardApp.vault.addAgentOnTheFly(args);
+      }
+    };
+  }
+
+  static solveItineraryConstraintsAction() {
+    return {
+      name: "solve_itinerary_constraints",
+      description: "Mathematical & temporal constraint solver. Detects impossibilities between flight arrival, baggage claim buffers, chauffeur transit, activity boarding times, and vehicle passenger capacity limits. Autonomously returns optimal replanned schedules.",
+      effect: "read",
+      availability: "bridge",
+      callerOrigins: ["*"],
+      inputSchema: {
+        type: "object",
+        properties: {
+          flight_arrival_time: { type: "string", description: "Flight landing time (e.g. '4:30 PM')." },
+          baggage_buffer_minutes: { type: "integer", description: "Deplaning & baggage buffer minutes (default 30)." },
+          transit_minutes: { type: "integer", description: "Transit time to hotel (default 28)." },
+          party_size: { type: "integer", description: "Number of travelers." },
+          target_budget_usd: { type: "number", description: "Target traveler budget in USD." },
+          proposed_activity_name: { type: "string", description: "Activity name (e.g. 'Golden Gate Sunset Catamaran Cruise')." },
+          proposed_activity_time: { type: "string", description: "Scheduled activity time (e.g. '5:45 PM')." },
+          proposed_activity_day: { type: "string", description: "Day of activity (e.g. 'Friday')." }
+        },
+        additionalProperties: false
+      },
+      execute: async (args = {}) => {
+        const flightTime = args.flight_arrival_time || "4:30 PM";
+        const baggageBuffer = args.baggage_buffer_minutes || 30;
+        const transitMinutes = args.transit_minutes || 28;
+        const partySize = args.party_size || 2;
+        const activityTime = args.proposed_activity_time || "5:45 PM";
+        const activityDay = args.proposed_activity_day || "Friday";
+
+        // Parse flight time into minutes from midnight
+        const match = flightTime.match(/(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?/);
+        let flightMinutes = 16 * 60 + 30; // default 4:30 PM = 990
+        if (match) {
+          let h = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10);
+          const mer = match[3]?.toUpperCase();
+          if (mer === "PM" && h < 12) h += 12;
+          if (mer === "AM" && h === 12) h = 0;
+          flightMinutes = h * 60 + m;
+        }
+
+        const pickupMinutes = flightMinutes + baggageBuffer;
+        const hotelArrivalMinutes = pickupMinutes + transitMinutes;
+        const hotelArrivalH = Math.floor(hotelArrivalMinutes / 60);
+        const hotelArrivalM = hotelArrivalMinutes % 60;
+        const hotelArrivalStr = `${hotelArrivalH > 12 ? hotelArrivalH - 12 : hotelArrivalH}:${hotelArrivalM < 10 ? '0' : ''}${hotelArrivalM} PM`;
+
+        // Check activity time
+        const actMatch = activityTime.match(/(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?/);
+        let actMinutes = 17 * 60 + 45; // default 5:45 PM = 1065
+        if (actMatch) {
+          let h = parseInt(actMatch[1], 10);
+          const m = parseInt(actMatch[2], 10);
+          const mer = actMatch[3]?.toUpperCase();
+          if (mer === "PM" && h < 12) h += 12;
+          if (mer === "AM" && h === 12) h = 0;
+          actMinutes = h * 60 + m;
+        }
+
+        // Required arrival buffer before activity boarding is at least 35 minutes after hotel arrival
+        const earliestSafeActivityMinutes = hotelArrivalMinutes + 35;
+        const isTemporalConflict = (activityDay.toLowerCase() === "friday" || activityDay.toLowerCase().includes("arrival")) && actMinutes < earliestSafeActivityMinutes;
+
+        // Vehicle capacity constraint
+        const isCapacityConflict = partySize > 3;
+
+        const replannedSchedule = {
+          flight_arrival: flightTime,
+          chauffeur_pickup: `${Math.floor(pickupMinutes / 60) > 12 ? Math.floor(pickupMinutes / 60) - 12 : Math.floor(pickupMinutes / 60)}:${pickupMinutes % 60 < 10 ? '0' : ''}${pickupMinutes % 60} PM`,
+          estimated_hotel_arrival: hotelArrivalStr,
+          recommended_vehicle: isCapacityConflict ? "Luxury Chauffeur SUV (Rivian R1S / Escalade - Capacity: 6)" : "Executive EV Sedan (Lucid Air - Capacity: 3)",
+          rescheduled_activity: {
+            name: args.proposed_activity_name || "Golden Gate Sunset Catamaran Cruise",
+            original_time: `${activityDay} ${activityTime}`,
+            replanned_time: isTemporalConflict ? "Saturday 5:45 PM" : `${activityDay} ${activityTime}`,
+            status: isTemporalConflict ? "REPLANNED_AVOID_CONFLICT" : "FEASIBLE"
+          }
+        };
+
+        return {
+          ok: true,
+          solver_version: "2.1.0-sandboxed",
+          has_conflicts: isTemporalConflict || isCapacityConflict,
+          temporal_conflict: isTemporalConflict,
+          capacity_conflict: isCapacityConflict,
+          conflict_analysis: isTemporalConflict
+            ? `Temporal impossibility: Flight arrives at ${flightTime}. With ${baggageBuffer}m baggage buffer and ${transitMinutes}m transit, estimated hotel check-in is ${hotelArrivalStr}. Activity at ${activityTime} with required early boarding cannot be safely reached on arrival night.`
+            : "No temporal conflicts detected.",
+          capacity_analysis: isCapacityConflict
+            ? `Party size of ${partySize} exceeds 3-passenger sedan capacity. Upgraded to Luxury Chauffeur SUV.`
+            : `Party size of ${partySize} fits within Executive EV Sedan capacity (3 max).`,
+          replanned_schedule: replannedSchedule,
+          recommendations: [
+            isTemporalConflict ? "Shift Sunset Catamaran Cruise from Friday evening to Saturday 5:45 PM to guarantee stress-free boarding." : "Schedule is temporally feasible.",
+            isCapacityConflict ? "Select Luxury Chauffeur SUV ($108.00) to safely accommodate all 4 guests with full luggage capacity." : "Select Executive EV Sedan ($68.00)."
+          ]
+        };
       }
     };
   }

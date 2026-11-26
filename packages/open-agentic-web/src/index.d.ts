@@ -284,6 +284,36 @@ export interface FederationReport {
 }
 
 export function validateNode(nodeDir: string): Promise<ValidationResult>;
+export interface ReceiptKeyPair {
+  publicKeyJwk: JsonWebKey;
+  privateKeyJwk: JsonWebKey;
+}
+
+export interface SignedReceipt {
+  version: string;
+  algorithm: string;
+  kid: string;
+  provider: string;
+  issuedAt: string;
+  payload: any;
+  canonicalPayload: string;
+  signature: string;
+}
+
+export interface VerificationResult {
+  valid: boolean;
+  provider?: string;
+  kid?: string;
+  payload?: any;
+  issuedAt?: string;
+  error?: string;
+}
+
+export function canonicalizeJson(obj: any): string;
+export function generateReceiptKeyPair(): Promise<ReceiptKeyPair>;
+export function signActionReceipt(payload: any, privateKeyJwk: JsonWebKey, options?: { kid?: string; provider?: string }): Promise<SignedReceipt>;
+export function verifyActionReceipt(receiptObj: SignedReceipt, publicKeyJwk: JsonWebKey): Promise<VerificationResult>;
+
 export function validateManifest(manifest: any): ValidationResult;
 export function validateNetwork(network: any): ValidationResult;
 export function validateFederation(hubDir: string, peerDirs: string[]): Promise<FederationReport>;

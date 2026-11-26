@@ -1,0 +1,13 @@
+{
+  "keys": [
+    {
+      "key_ops": ["verify"],
+      "ext": true,
+      "kty": "EC",
+      "x": "c3B7ZdjhMYgY_ZfDQuyFsBiApz5cKpCCx0_cEbjyI5s",
+      "y": "heuLo3ShXxZf7Mce9dIKx4bUMzR-9xh3NYgEHkzsneg",
+      "crv": "P-256",
+      "kid": "metropass-key-1"
+    }
+  ]
+}

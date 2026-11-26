@@ -572,8 +572,8 @@ export class Engine {
         composition: {
           remoteCalls: 0,
           peerCalls: new Map(),
-          maxRemoteCalls: 4,
-          maxCallsPerPeer: 1,
+          maxRemoteCalls: 8,
+          maxCallsPerPeer: 2,
           agentCalls: 0,
           maxAgentCalls: 24,
           deadline: Date.now() + 90_000,

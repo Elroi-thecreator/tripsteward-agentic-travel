@@ -7,13 +7,13 @@
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.4",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.4/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.5",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.5/"
       }
     }
     </script>
     <script type="module">
-      import { createActionRegistry, setupActionBridge } from "open-agentic-web";
+      import { createActionRegistry, setupActionBridge, createConsentDialog } from "open-agentic-web";
       import { SiteActions } from "../site-actions.js";
 
       const registry = createActionRegistry();
@@ -24,7 +24,13 @@
         registry,
         allowedOrigins: ["*"],
         onConfirm: async ({ action, arguments: args, origin }) => {
-          return window.confirm("[Action Authorization] " + origin + " is requesting to execute '" + action + "'. Authorize this action?");
+          return createConsentDialog({
+            title: "TableBespoke Action Authorization",
+            message: `${origin} is requesting permission to execute '${action}'.`,
+            details: args,
+            confirmText: "Authorize Action",
+            cancelText: "Decline"
+          });
         }
       });
     </script>

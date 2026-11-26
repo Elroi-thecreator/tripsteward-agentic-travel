@@ -578,3 +578,140 @@ export function createConsentDialog({
     }
   });
 }
+
+/**
+ * Canonical JSON serialization for cryptographic signatures.
+ * Recursively sorts keys deterministically.
+ */
+export function canonicalizeJson(obj) {
+  if (obj === null || typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return "[" + obj.map(canonicalizeJson).join(",") + "]";
+  }
+  const sortedKeys = Object.keys(obj).sort();
+  const pairs = sortedKeys.map(k => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`);
+  return "{" + pairs.join(",") + "}";
+}
+
+function bufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+}
+
+function base64ToBuffer(base64) {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+  return Buffer.from(base64, "base64");
+}
+
+/**
+ * Generate an ECDSA P-256 keypair for signing and verifying provider receipts.
+ */
+export async function generateReceiptKeyPair() {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error("WebCrypto subtle API is not available in this environment.");
+
+  const keyPair = await subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"]
+  );
+
+  const publicKeyJwk = await subtle.exportKey("jwk", keyPair.publicKey);
+  const privateKeyJwk = await subtle.exportKey("jwk", keyPair.privateKey);
+
+  return { publicKeyJwk, privateKeyJwk };
+}
+
+/**
+ * Sign an action execution receipt using native WebCrypto ECDSA P-256.
+ */
+export async function signActionReceipt(payload, privateKeyJwk, { kid = "oaw-key-1", provider = "Open Agentic Web Node" } = {}) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error("WebCrypto subtle API is not available in this environment.");
+
+  const canonicalPayload = canonicalizeJson(payload);
+  const enc = new TextEncoder();
+  const data = enc.encode(canonicalPayload);
+
+  const key = await subtle.importKey(
+    "jwk",
+    privateKeyJwk,
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"]
+  );
+
+  const sigBuffer = await subtle.sign(
+    { name: "ECDSA", hash: { name: "SHA-256" } },
+    key,
+    data
+  );
+
+  return {
+    version: "1.0.0",
+    algorithm: "ES256",
+    kid,
+    provider,
+    issuedAt: new Date().toISOString(),
+    payload,
+    canonicalPayload,
+    signature: bufferToBase64(sigBuffer)
+  };
+}
+
+/**
+ * Verify an ECDSA P-256 signed action receipt.
+ */
+export async function verifyActionReceipt(receiptObj, publicKeyJwk) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error("WebCrypto subtle API is not available in this environment.");
+
+  if (!receiptObj || !receiptObj.signature || !receiptObj.payload) {
+    return { valid: false, error: "Invalid receipt structure: missing signature or payload" };
+  }
+
+  try {
+    const canonicalPayload = receiptObj.canonicalPayload || canonicalizeJson(receiptObj.payload);
+    const enc = new TextEncoder();
+    const data = enc.encode(canonicalPayload);
+    const sigBuffer = base64ToBuffer(receiptObj.signature);
+
+    const key = await subtle.importKey(
+      "jwk",
+      publicKeyJwk,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"]
+    );
+
+    const valid = await subtle.verify(
+      { name: "ECDSA", hash: { name: "SHA-256" } },
+      key,
+      sigBuffer,
+      data
+    );
+
+    return {
+      valid,
+      provider: receiptObj.provider,
+      kid: receiptObj.kid,
+      payload: receiptObj.payload,
+      issuedAt: receiptObj.issuedAt
+    };
+  } catch (err) {
+    return { valid: false, error: err.message };
+  }
+}

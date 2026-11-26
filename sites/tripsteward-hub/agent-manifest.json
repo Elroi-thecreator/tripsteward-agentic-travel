@@ -95,7 +95,8 @@
       "reserve_hotel_room",
       "compile_master_itinerary",
       "discover_agent_nodes",
-      "register_agent_node"
+      "register_agent_node",
+      "solve_itinerary_constraints"
     ]
   }
 }

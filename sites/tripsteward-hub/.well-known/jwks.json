@@ -1,0 +1,13 @@
+{
+  "keys": [
+    {
+      "key_ops": ["verify"],
+      "ext": true,
+      "kty": "EC",
+      "x": "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
+      "y": "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
+      "crv": "P-256",
+      "kid": "harborview-key-1"
+    }
+  ]
+}

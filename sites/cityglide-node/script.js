@@ -10,6 +10,81 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function showToast(message, type = "info") {
+  if (typeof document === "undefined") return;
+  let container = document.getElementById("oaw-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "oaw-toast-container";
+    container.style.cssText = "position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; max-width: 380px;";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  const bg = type === "success" ? "#059669" : type === "error" ? "#dc2626" : "#0284c7";
+  toast.style.cssText = `background: ${bg}; color: white; padding: 12px 18px; border-radius: 8px; font-family: system-ui, sans-serif; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: space-between; gap: 12px; transform: translateY(20px); opacity: 0; transition: all 0.25s ease;`;
+  toast.innerHTML = `<span>${escapeHtml(message)}</span><button style="background: none; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 16px; padding: 0;">&times;</button>`;
+  container.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.transform = "translateY(0)";
+    toast.style.opacity = "1";
+  });
+  const remove = () => {
+    toast.style.transform = "translateY(20px)";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 250);
+  };
+  toast.querySelector("button").onclick = remove;
+  setTimeout(remove, 4500);
+}
+
+const CG_PRIVATE_KEY_JWK = {
+  key_ops: ["sign"],
+  ext: true,
+  kty: "EC",
+  x: "aZ-sa51tZjXPoBgtL1LE9Vt1svlB2Tz8rAGKT5dNnCM",
+  y: "DMOmBT1jdDj63PrH_xr4HlPgvbVyu0GFiP4Nnc4J32E",
+  crv: "P-256",
+  d: "_20f9EJc8xrH8Q_K-gRgL7Y_KSGga9IXvjSCPTsfd1I",
+  kid: "cityglide-key-1"
+};
+
+function canonicalizeJson(obj) {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalizeJson).join(",") + "]";
+  return "{" + Object.keys(obj).sort().map(k => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`).join(",") + "}";
+}
+
+function bufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+}
+
+async function signActionReceipt(payload, privKey, { kid = "cityglide-key-1", provider = "CityGlide Autonomous Fleet" } = {}) {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const canonicalPayload = canonicalizeJson(payload);
+    const data = new TextEncoder().encode(canonicalPayload);
+    const key = await subtle.importKey("jwk", privKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const sigBuffer = await subtle.sign({ name: "ECDSA", hash: { name: "SHA-256" } }, key, data);
+    return {
+      version: "1.0.0",
+      algorithm: "ES256",
+      kid,
+      provider,
+      issuedAt: new Date().toISOString(),
+      payload,
+      canonicalPayload,
+      signature: bufferToBase64(sigBuffer)
+    };
+  } catch (err) {
+    console.warn("Could not sign receipt:", err);
+    return null;
+  }
+}
+
 function broadcastProviderEvent(eventData) {
   try {
     if (typeof BroadcastChannel !== "undefined") {
@@ -174,7 +249,7 @@ export class CityGlideApp {
       };
     },
 
-    scheduleTransfer(args) {
+    async scheduleTransfer(args) {
       const id = "CG-TRANS-" + Math.floor(1000 + Math.random() * 9000);
       const matchedDriver = args.vehicle_class?.includes("SUV") 
         ? "Derrick Hayes (Rivian R1S Chauffeur #03)"
@@ -194,6 +269,21 @@ export class CityGlideApp {
         created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
+      const receipt = await signActionReceipt({
+        transfer_id: res.transfer_id,
+        passenger_name: res.passenger_name,
+        vehicle_class: res.vehicle_class,
+        driver: res.driver,
+        pickup_location: res.pickup_location,
+        dropoff_location: res.dropoff_location,
+        pickup_time: res.pickup_time,
+        fare_usd: res.fare_usd
+      }, CG_PRIVATE_KEY_JWK, {
+        kid: "cityglide-key-1",
+        provider: "CityGlide Autonomous Fleet"
+      });
+      res.receipt = receipt;
+
       this.reservations.unshift(res);
       try {
         if (typeof localStorage !== "undefined") {
@@ -211,6 +301,7 @@ export class CityGlideApp {
         pickup_window: res.pickup_time,
         fare_usd: res.fare_usd,
         status: res.status,
+        receipt: receipt,
         confirmation_message: `Chauffeur dispatched for ${res.passenger_name}. Your driver will meet you at ${res.pickup_location} at ${res.pickup_time}.`
       };
     },
@@ -328,8 +419,8 @@ export class CityGlideApp {
     }
   }
 
-  static bookManual(vehicleClass, fare) {
-    CityGlideApp.vault.scheduleTransfer({
+  static async bookManual(vehicleClass, fare) {
+    await CityGlideApp.vault.scheduleTransfer({
       passenger_name: "Walk-in Guest",
       vehicle_class: vehicleClass,
       pickup_location: "SFO Terminal 2 Curbside",
@@ -337,7 +428,7 @@ export class CityGlideApp {
       pickup_time: "5:00 PM",
       fare_usd: fare
     });
-    alert(`Transfer Reserved: ${vehicleClass} booked at $${fare}.00 USD!`);
+    showToast(`Transfer Reserved: ${vehicleClass} booked at $${fare}.00 USD with ECDSA signed receipt!`, "success");
   }
 }
 

@@ -11,6 +11,353 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function showToast(message, type = "info") {
+  if (typeof document === "undefined") return;
+  let container = document.getElementById("oaw-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "oaw-toast-container";
+    container.style.cssText = "position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; max-width: 380px;";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  const bg = type === "success" ? "#059669" : type === "error" ? "#dc2626" : "#0284c7";
+  toast.style.cssText = `background: ${bg}; color: white; padding: 12px 18px; border-radius: 8px; font-family: system-ui, sans-serif; font-size: 13px; line-height: 1.4; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: space-between; gap: 12px; transform: translateY(20px); opacity: 0; transition: all 0.25s ease;`;
+  toast.innerHTML = `<span>${escapeHtml(message)}</span><button style="background: none; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 16px; padding: 0;">&times;</button>`;
+  container.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.transform = "translateY(0)";
+    toast.style.opacity = "1";
+  });
+  const remove = () => {
+    toast.style.transform = "translateY(20px)";
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 250);
+  };
+  toast.querySelector("button").onclick = remove;
+  setTimeout(remove, 4500);
+}
+
+const HV_PRIVATE_KEY_JWK = {
+  key_ops: ["sign"],
+  ext: true,
+  kty: "EC",
+  x: "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
+  y: "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
+  crv: "P-256",
+  d: "yWkkIr_gRYVC1J-viVpw_REKMSIIs3MCdeBlJ9KavxM",
+  kid: "harborview-key-1"
+};
+
+const PROVIDER_PUBLIC_KEYS = {
+  "harborview-key-1": {
+    key_ops: ["verify"],
+    ext: true,
+    kty: "EC",
+    x: "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
+    y: "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
+    crv: "P-256",
+    kid: "harborview-key-1"
+  },
+  "cityglide-key-1": {
+    key_ops: ["verify"],
+    ext: true,
+    kty: "EC",
+    x: "aZ-sa51tZjXPoBgtL1LE9Vt1svlB2Tz8rAGKT5dNnCM",
+    y: "DMOmBT1jdDj63PrH_xr4HlPgvbVyu0GFiP4Nnc4J32E",
+    crv: "P-256",
+    kid: "cityglide-key-1"
+  },
+  "metropass-key-1": {
+    key_ops: ["verify"],
+    ext: true,
+    kty: "EC",
+    x: "c3B7ZdjhMYgY_ZfDQuyFsBiApz5cKpCCx0_cEbjyI5s",
+    y: "heuLo3ShXxZf7Mce9dIKx4bUMzR-9xh3NYgEHkzsneg",
+    crv: "P-256",
+    kid: "metropass-key-1"
+  }
+};
+
+function canonicalizeJson(obj) {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalizeJson).join(",") + "]";
+  return "{" + Object.keys(obj).sort().map(k => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`).join(",") + "}";
+}
+
+function bufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+}
+
+function base64ToBuffer(base64) {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+  return Buffer.from(base64, "base64");
+}
+
+async function signActionReceipt(payload, privKey, { kid = "harborview-key-1", provider = "HarborView Boutique Hotel" } = {}) {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const canonicalPayload = canonicalizeJson(payload);
+    const data = new TextEncoder().encode(canonicalPayload);
+    const key = await subtle.importKey("jwk", privKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const sigBuffer = await subtle.sign({ name: "ECDSA", hash: { name: "SHA-256" } }, key, data);
+    return {
+      version: "1.0.0",
+      algorithm: "ES256",
+      kid,
+      provider,
+      issuedAt: new Date().toISOString(),
+      payload,
+      canonicalPayload,
+      signature: bufferToBase64(sigBuffer)
+    };
+  } catch (err) {
+    console.warn("Could not sign receipt:", err);
+    return null;
+  }
+}
+
+async function verifyActionReceipt(receiptObj, publicKeyJwk) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return { valid: false, error: "WebCrypto not available" };
+  if (!receiptObj?.signature || !receiptObj?.payload) return { valid: false, error: "Missing signature/payload" };
+  try {
+    const canonicalPayload = receiptObj.canonicalPayload || canonicalizeJson(receiptObj.payload);
+    const data = new TextEncoder().encode(canonicalPayload);
+    const sigBuffer = base64ToBuffer(receiptObj.signature);
+    const key = await subtle.importKey("jwk", publicKeyJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const valid = await subtle.verify({ name: "ECDSA", hash: { name: "SHA-256" } }, key, sigBuffer, data);
+    return { valid, provider: receiptObj.provider, kid: receiptObj.kid, issuedAt: receiptObj.issuedAt };
+  } catch (e) {
+    return { valid: false, error: e.message };
+  }
+}
+
+/**
+ * Genuine ISO/IEC 18004 Standard QR Code Generator (Model 2, Version 1, Level M).
+ */
+function generateISO18004QR(code, size = 96) {
+  const exp = new Uint8Array(512);
+  const log = new Uint8Array(256);
+  let val = 1;
+  for (let i = 0; i < 255; i++) {
+    exp[i] = val;
+    exp[i + 255] = val;
+    log[val] = i;
+    val = (val << 1) ^ (val >= 128 ? 0x11D : 0);
+  }
+
+  function gfMul(x, y) {
+    if (x === 0 || y === 0) return 0;
+    return exp[log[x] + log[y]];
+  }
+
+  const genPoly = [1, 251, 67, 46, 61, 118, 70, 64, 94, 32, 45];
+  const inputBytes = new TextEncoder().encode(String(code).slice(0, 14));
+  const data = new Uint8Array(16);
+  let bitPos = 0;
+
+  function writeBits(bits, len) {
+    for (let i = len - 1; i >= 0; i--) {
+      const bit = (bits >> i) & 1;
+      const byteIdx = bitPos >> 3;
+      const bitIdx = 7 - (bitPos & 7);
+      if (byteIdx < 16) data[byteIdx] |= (bit << bitIdx);
+      bitPos++;
+    }
+  }
+
+  writeBits(0b0100, 4);
+  writeBits(inputBytes.length, 8);
+  for (let i = 0; i < inputBytes.length; i++) writeBits(inputBytes[i], 8);
+  writeBits(0, 4);
+  if (bitPos % 8 !== 0) bitPos += (8 - (bitPos % 8));
+  let padByte = 0xEC;
+  while ((bitPos >> 3) < 16) {
+    data[bitPos >> 3] = padByte;
+    padByte = padByte === 0xEC ? 0x11 : 0xEC;
+    bitPos += 8;
+  }
+
+  const ec = new Uint8Array(10);
+  for (let i = 0; i < 16; i++) {
+    const feedback = data[i] ^ ec[0];
+    for (let j = 0; j < 9; j++) {
+      ec[j] = ec[j + 1] ^ gfMul(feedback, genPoly[j + 1]);
+    }
+    ec[9] = gfMul(feedback, genPoly[10]);
+  }
+
+  const allCodewords = new Uint8Array(26);
+  allCodewords.set(data, 0);
+  allCodewords.set(ec, 16);
+
+  const grid = Array.from({ length: 21 }, () => new Int8Array(21).fill(-1));
+
+  function drawFinder(r0, c0) {
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 7; c++) {
+        const isBorder = (r === 0 || r === 6 || c === 0 || c === 6);
+        const isCenter = (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+        grid[r0 + r][c0 + c] = (isBorder || isCenter) ? 1 : 0;
+      }
+    }
+    for (let r = -1; r <= 7; r++) {
+      for (let c = -1; c <= 7; c++) {
+        if (r === -1 || r === 7 || c === -1 || c === 7) {
+          const row = r0 + r;
+          const col = c0 + c;
+          if (row >= 0 && row < 21 && col >= 0 && col < 21) grid[row][col] = 0;
+        }
+      }
+    }
+  }
+
+  drawFinder(0, 0);
+  drawFinder(0, 14);
+  drawFinder(14, 0);
+
+  for (let i = 8; i <= 12; i++) {
+    grid[6][i] = (i % 2 === 0) ? 1 : 0;
+    grid[i][6] = (i % 2 === 0) ? 1 : 0;
+  }
+  grid[13][8] = 1;
+
+  const formatBits = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
+  const tlCoords = [
+    [8,0], [8,1], [8,2], [8,3], [8,4], [8,5], [8,7], [8,8],
+    [7,8], [5,8], [4,8], [3,8], [2,8], [1,8], [0,8]
+  ];
+  for (let i = 0; i < 15; i++) grid[tlCoords[i][0]][tlCoords[i][1]] = formatBits[i];
+  for (let i = 0; i < 7; i++) grid[20 - i][8] = formatBits[i];
+  for (let i = 0; i < 8; i++) grid[8][13 + i] = formatBits[7 + i];
+
+  let codewordIdx = 0;
+  let bitIndex = 7;
+  let upward = true;
+
+  for (let right = 20; right > 0; right -= 2) {
+    if (right === 6) right--;
+    for (let vert = 0; vert < 21; vert++) {
+      const row = upward ? (20 - vert) : vert;
+      for (let colOffset = 0; colOffset < 2; colOffset++) {
+        const col = right - colOffset;
+        if (grid[row][col] === -1) {
+          let bit = 0;
+          if (codewordIdx < 26) {
+            bit = (allCodewords[codewordIdx] >> bitIndex) & 1;
+            bitIndex--;
+            if (bitIndex < 0) {
+              bitIndex = 7;
+              codewordIdx++;
+            }
+          }
+          if ((row + col) % 2 === 0) bit ^= 1;
+          grid[row][col] = bit;
+        }
+      }
+    }
+    upward = !upward;
+  }
+
+  const cellSize = size / 21;
+  let rects = "";
+  for (let r = 0; r < 21; r++) {
+    for (let c = 0; c < 21; c++) {
+      if (grid[r][c] === 1) {
+        rects += `<rect x="${(c * cellSize).toFixed(1)}" y="${(r * cellSize).toFixed(1)}" width="${cellSize.toFixed(1)}" height="${cellSize.toFixed(1)}" fill="#0f172a" />`;
+      }
+    }
+  }
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" style="border-radius: 6px; background: #ffffff; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"><rect width="${size}" height="${size}" fill="#ffffff"/>${rects}</svg>`;
+}
+
+function generateICS(itinerary, bookings) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const formatDate = (date) => {
+    return date.getUTCFullYear() +
+      pad(date.getUTCMonth() + 1) +
+      pad(date.getUTCDate()) + "T" +
+      pad(date.getUTCHours()) +
+      pad(date.getUTCMinutes()) +
+      pad(date.getUTCSeconds()) + "Z";
+  };
+  const now = formatDate(new Date());
+
+  let events = [];
+
+  if (bookings.hotel) {
+    events.push(`BEGIN:VEVENT
+UID:hotel-${bookings.hotel.id || 'res'}@tripsteward.openagenticweb.org
+DTSTAMP:${now}
+DTSTART:20261127T230000Z
+DTEND:20261129T180000Z
+SUMMARY:🏨 HarborView Hotel Stay (${bookings.hotel.room_tier})
+DESCRIPTION:Direct Reservation Ref: ${bookings.hotel.id}\\nRate: $${bookings.hotel.nightly_rate_usd}/night (${bookings.hotel.nights} nights)\\n0% OTA Commission Direct Provider Booking
+LOCATION:HarborView Hotel, 450 Waterfront Blvd
+STATUS:CONFIRMED
+END:VEVENT`);
+  }
+
+  if (bookings.transfer) {
+    events.push(`BEGIN:VEVENT
+UID:transfer-${bookings.transfer.id || 'res'}@tripsteward.openagenticweb.org
+DTSTAMP:${now}
+DTSTART:20261127T170000Z
+DTEND:20261127T174500Z
+SUMMARY:🚗 CityGlide Airport Chauffeur (${bookings.transfer.vehicle_class})
+DESCRIPTION:Transfer Ref: ${bookings.transfer.id}\\nDriver: ${bookings.transfer.driver || 'Chauffeur Dispatched'}\\nFlight Telemetry Synced
+LOCATION:${bookings.transfer.pickup_location || 'Airport Curbside'}
+STATUS:CONFIRMED
+END:VEVENT`);
+  }
+
+  if (bookings.exp) {
+    events.push(`BEGIN:VEVENT
+UID:exp-${bookings.exp.id || 'res'}@tripsteward.openagenticweb.org
+DTSTAMP:${now}
+DTSTART:20261128T180000Z
+DTEND:20261128T200000Z
+SUMMARY:⛵ MetroPass (${bookings.exp.experience_name})
+DESCRIPTION:Voucher Ref: ${bookings.exp.id}\\nPasses: ${bookings.exp.tickets} Guest(s)\\nDirect Total: $${bookings.exp.total_price_usd}\\nDigital QR Pass Verified
+LOCATION:Pier 39, Marina Gate B
+STATUS:CONFIRMED
+END:VEVENT`);
+  }
+
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//TripSteward//Open Agentic Web Concierge//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:TripSteward Master Itinerary
+${events.join("\n")}
+END:VCALENDAR`;
+}
+
+function downloadICS(filename, content) {
+  if (typeof Blob === "undefined" || typeof URL === "undefined") return;
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export class TripStewardVault {
   constructor() {
     // Dynamic Active Journey Canvas (Zero hardcoded past trip history)
@@ -156,11 +503,91 @@ export class TripStewardVault {
   }
 
   setJourney(data) {
-    this.activeJourney.destination = data.destination || this.activeJourney.destination;
+    const dest = data.destination || this.activeJourney.destination;
+    this.activeJourney.destination = dest;
     this.activeJourney.dates = data.dates || this.activeJourney.dates;
     this.activeJourney.flight_details = data.flight_details || this.activeJourney.flight_details;
     this.activeJourney.target_budget_usd = data.target_budget_usd || this.activeJourney.target_budget_usd;
     this.activeJourney.title = `Journey to ${this.activeJourney.destination}`;
+
+    const destLower = dest.toLowerCase();
+    if (destLower.includes("seattle")) {
+      this.activeJourney.flight_details = data.flight_details || "Delta Air Lines DL 1194 • SEA Arrival: Friday 3:45 PM";
+      this.activeJourney.room_options = [
+        { tier: "Deluxe Puget Sound View", rate: 215, status: "AVAILABLE", view: "Panoramic Waterfront & Olympic Mountains" },
+        { tier: "Downtown Executive Suite", rate: 245, status: "AVAILABLE", view: "Skyline & Pike Place Views" },
+        { tier: "Space Needle View Penthouse", rate: 390, status: "AVAILABLE", view: "Private Top-Floor Terrace" }
+      ];
+      this.activeJourney.demo_script = {
+        prompt: "TripSteward Concierge, please coordinate my journey for Seattle. Reserve a quiet room at HarborView under $250/night, coordinate a private airport transfer with CityGlide for my flight arriving at 3:45 PM, and book two sunset whale and harbor sail passes with MetroPass.",
+        cityglide_response: "CityGlide Transfer Dispatch confirmed: Vehicle 'Executive EV Sedan' (Lucid Air) assigned. Flight DL 1194 tracked in real-time. Pickup locked for 4:15 PM at SEA-Tac Priority Curbside. Direct transit time to HarborView: 24 mins. Fixed Fare: $68.00 USD (Ref: #CG-TRANS-6120).",
+        metropass_response: "MetroPass Experiences Curator confirmed: Reserved 2x VIP Tickets for 'Puget Sound Sunset Whale & Harbor Sail' on Saturday, Nov 28 at 5:00 PM. Total Price: $170.00 USD (Ref: #MP-PASS-4921).",
+        itinerary: {
+          trip_title: "Seattle Autumn Waterfront Retreat",
+          destination: "Seattle, Washington",
+          dates: "Nov 27 – Nov 29, 2026 (2 Nights)",
+          total_cost_usd: 668.00,
+          direct_savings_usd: 174.00,
+          itinerary_highlights: [
+            "🏨 HarborView Seattle: Deluxe Puget Sound View (2 Nights @ $215/night = $430)",
+            "🚗 CityGlide Transfer: Executive EV Sedan (SEA-Tac to Hotel = $68)",
+            "⛵ MetroPass Experience: 2x Puget Sound Sunset Whale Passes ($170)"
+          ],
+          concierge_notes: "Direct booking confirmed across all connected provider nodes. 0% middleman booking fees."
+        }
+      };
+    } else if (destLower.includes("austin")) {
+      this.activeJourney.flight_details = data.flight_details || "Southwest Airlines WN 2042 • AUS Arrival: Friday 2:15 PM";
+      this.activeJourney.room_options = [
+        { tier: "Lady Bird Lake View Queen", rate: 175, status: "AVAILABLE", view: "Waterfront & Downtown Skyline" },
+        { tier: "Downtown Congress Executive Suite", rate: 210, status: "AVAILABLE", view: "Capitol & City Lights" },
+        { tier: "Texas Hill Country View Penthouse", rate: 340, status: "AVAILABLE", view: "Panoramic Sunset Terrace" }
+      ];
+      this.activeJourney.demo_script = {
+        prompt: "TripSteward Concierge, please coordinate my journey for Austin. Reserve a room under $200/night, coordinate a private airport transfer with CityGlide for my flight arriving at 2:15 PM, and book two sunset paddle and bat cruise tickets with MetroPass.",
+        cityglide_response: "CityGlide Transfer Dispatch confirmed: Vehicle 'Executive EV Sedan' assigned. Flight WN 2042 tracked. Pickup at AUS Curbside. Fare: $68.00 USD (Ref: #CG-TRANS-3091).",
+        metropass_response: "MetroPass Experiences Curator confirmed: Reserved 2x Passes for 'Lady Bird Lake Sunset Paddle & Bat Cruise' on Saturday, Nov 28. Total: $110.00 USD (Ref: #MP-PASS-2281).",
+        itinerary: {
+          trip_title: "Austin Hill Country & Waterfront Retreat",
+          destination: "Austin, Texas",
+          dates: "Nov 27 – Nov 29, 2026 (2 Nights)",
+          total_cost_usd: 528.00,
+          direct_savings_usd: 146.00,
+          itinerary_highlights: [
+            "🏨 HarborView Austin: Lady Bird Lake View Queen (2 Nights @ $175/night = $350)",
+            "🚗 CityGlide Transfer: Executive EV Sedan (AUS to Hotel = $68)",
+            "⛵ MetroPass Experience: 2x Lady Bird Sunset Paddle Passes ($110)"
+          ],
+          concierge_notes: "Direct booking confirmed across all connected provider nodes. 0% middleman booking fees."
+        }
+      };
+    } else {
+      this.activeJourney.flight_details = data.flight_details || "United Airlines UA 482 • SFO Arrival: Friday 4:30 PM";
+      this.activeJourney.room_options = [
+        { tier: "Deluxe Bay-View Queen", rate: 189, status: "AVAILABLE", view: "Panoramic Bay & Bridge View" },
+        { tier: "Urban Executive Loft", rate: 220, status: "AVAILABLE", view: "Skyline & City Lights" },
+        { tier: "Panoramic Harbor Penthouse", rate: 395, status: "AVAILABLE", view: "Private Wrap-Around Terrace" }
+      ];
+      this.activeJourney.demo_script = {
+        prompt: "TripSteward Concierge, please coordinate my journey for San Francisco. Reserve a quiet room at HarborView under $200/night, coordinate a private airport transfer with CityGlide for my flight arriving at 4:30 PM, and book two sunset bay cruise tickets with MetroPass.",
+        cityglide_response: "CityGlide Transfer Dispatch confirmed: Vehicle 'Executive EV Sedan' (Tesla Model S) assigned. Flight UA 482 tracked in real-time. Pickup locked for 5:00 PM at SFO Terminal 2 with 30-minute post-touchdown grace buffer. Direct transit time to HarborView: 28 mins. Fixed Fare: $68.00 USD (Ref: #CG-TRANS-8492).",
+        metropass_response: "MetroPass Experiences Curator confirmed: Reserved 2x VIP Tickets for 'Golden Gate Sunset Catamaran Sailing' on Saturday, Nov 28 at 5:45 PM. Priority boarding at Pier 39 included. Total Price: $158.00 USD (Ref: #MP-PASS-3104).",
+        itinerary: {
+          trip_title: "San Francisco Autumn Waterfront Retreat",
+          destination: "San Francisco, California",
+          dates: "Nov 27 – Nov 29, 2026 (2 Nights)",
+          total_cost_usd: 604.00,
+          direct_savings_usd: 161.00,
+          itinerary_highlights: [
+            "🏨 HarborView Hotel: Deluxe Bay-View Queen (2 Nights @ $189/night = $378)",
+            "🚗 CityGlide Transfer: Executive EV Sedan (SFO Terminal 2 to Hotel = $68)",
+            "⛵ MetroPass Experience: 2x Sunset Catamaran Sailing Passes ($158)"
+          ],
+          concierge_notes: "Direct booking confirmed across all connected provider nodes. 0% middleman booking fees."
+        }
+      };
+    }
+
     if (data.notes) {
       this.activeJourney.preferences = [
         { category: "Traveler Request", value: data.notes },
@@ -312,18 +739,34 @@ export class TripStewardVault {
     }
   }
 
-  reserveHotelRoom(room) {
+  async reserveHotelRoom(room) {
+    const id = "HV-STAY-" + Math.floor(10000 + Math.random() * 90000);
+    const cost = (room.nightly_rate_usd || 189) * (room.nights || 2);
+    const receipt = await signActionReceipt({
+      reservation_id: id,
+      room_tier: room.room_tier || "Deluxe Bay-View Queen",
+      nightly_rate_usd: room.nightly_rate_usd || 189,
+      nights: room.nights || 2,
+      guest_names: room.guest_names || this.activeJourney?.traveler?.name || "Dr. Rachel Chen",
+      total_stay_cost: cost
+    }, HV_PRIVATE_KEY_JWK, {
+      kid: "harborview-key-1",
+      provider: "HarborView Boutique Hotel"
+    });
+
     this.hotelReservation = {
-      id: "HV-STAY-" + Math.floor(10000 + Math.random() * 90000),
+      id,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: "RESERVED_DIRECT",
+      receipt,
       ...room
     };
     TripStewardApp.renderBookings();
     return {
       ok: true,
       reservation_id: this.hotelReservation.id,
-      total_stay_cost: room.nightly_rate_usd * room.nights,
+      total_stay_cost: cost,
+      receipt,
       message: `HarborView room '${room.room_tier}' successfully reserved for ${room.nights} nights.`
     };
   }
@@ -712,7 +1155,7 @@ export class TripStewardApp {
           input.focus();
         } else if (navigator.clipboard) {
           navigator.clipboard.writeText(t.demo_script.prompt);
-          alert("Copied sample prompt to clipboard! Paste it into the orchestrator chat below.");
+          showToast("Copied sample prompt to clipboard! Paste it into the orchestrator chat below.", "info");
         }
       });
     }
@@ -750,6 +1193,49 @@ export class TripStewardApp {
         }
         TripStewardApp.downloadItineraryText();
       });
+    }
+
+    const exportIcsBtn = document.querySelector("#export-ics-btn");
+    if (exportIcsBtn) {
+      exportIcsBtn.addEventListener("click", () => {
+        const bookings = {
+          hotel: TripStewardApp.vault.hotelReservation,
+          transfer: TripStewardApp.vault.airportTransfer,
+          exp: TripStewardApp.vault.cityExperience
+        };
+        const icsContent = generateICS(TripStewardApp.vault.masterItinerary, bookings);
+        downloadICS("tripsteward-itinerary.ics", icsContent);
+        showToast("Exported RFC 5545 .ics Calendar pass!", "success");
+      });
+    }
+
+    const toggleInspectorBtn = document.querySelector("#toggle-inspector-btn");
+    const closeInspectorBtn = document.querySelector("#close-inspector-btn");
+    const inspectorDrawer = document.querySelector("#inspector-drawer");
+    if (toggleInspectorBtn && inspectorDrawer) {
+      toggleInspectorBtn.addEventListener("click", () => {
+        const isHidden = inspectorDrawer.style.display === "none";
+        inspectorDrawer.style.display = isHidden ? "block" : "none";
+        if (isHidden) {
+          TripStewardApp.renderInspectorReceipts();
+          inspectorDrawer.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    }
+    if (closeInspectorBtn && inspectorDrawer) {
+      closeInspectorBtn.addEventListener("click", () => {
+        inspectorDrawer.style.display = "none";
+      });
+    }
+
+    const verifyBtn = document.querySelector("#verify-signatures-btn");
+    if (verifyBtn) {
+      verifyBtn.addEventListener("click", () => TripStewardApp.verifySignatures(false));
+    }
+
+    const tamperBtn = document.querySelector("#tamper-test-btn");
+    if (tamperBtn) {
+      tamperBtn.addEventListener("click", () => TripStewardApp.verifySignatures(true));
     }
 
     TripStewardApp.initTelemetry();
@@ -832,7 +1318,7 @@ export class TripStewardApp {
 
     let existing = TripStewardApp.vault.extraBookings.find(b => b.agent_id === agentId);
     if (existing) {
-      alert(`Booking already active for ${agent.name} (Ref: ${existing.ref_id}).`);
+      showToast(`Booking already active for ${agent.name} (Ref: ${existing.ref_id}).`, "info");
       return;
     }
 
@@ -1174,12 +1660,125 @@ export class TripStewardApp {
         container.innerHTML = `<div class="empty-state">No direct provider reservations committed yet.</div>`;
       } else {
         container.innerHTML = `
-          ${hotel ? `<div>🏨 Hotel: ${escapeHtml(hotel.room_tier)} (#${escapeHtml(hotel.id)})</div>` : ''}
-          ${transfer ? `<div>🚗 Ride: ${escapeHtml(transfer.vehicle_class)} (#${escapeHtml(transfer.id)})</div>` : ''}
-          ${exp ? `<div>⛵ Exp: ${escapeHtml(exp.experience_name)} (#${escapeHtml(exp.id)})</div>` : ''}
+          ${hotel ? `
+            <div class="confirmed-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+              <div style="font-weight: 600; color: #0f172a;">🏨 Hotel: ${escapeHtml(hotel.room_tier)}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Ref: ${escapeHtml(hotel.id)} • $${hotel.nightly_rate_usd}/night (${hotel.nights} nights)</div>
+              ${hotel.receipt ? `<div style="font-size: 10px; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">🔏 ECDSA Signed (ES256 • ${escapeHtml(hotel.receipt.kid)})</div>` : ''}
+            </div>
+          ` : ''}
+          ${transfer ? `
+            <div class="confirmed-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+              <div style="font-weight: 600; color: #0f172a;">🚗 Ride: ${escapeHtml(transfer.vehicle_class)}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Ref: ${escapeHtml(transfer.id)} • Fare: $${transfer.fare_usd} • Driver: ${escapeHtml(transfer.driver || 'Assigned')}</div>
+              ${transfer.receipt ? `<div style="font-size: 10px; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">🔏 ECDSA Signed (ES256 • ${escapeHtml(transfer.receipt.kid)})</div>` : ''}
+            </div>
+          ` : ''}
+          ${exp ? `
+            <div class="confirmed-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+              <div>
+                <div style="font-weight: 600; color: #0f172a;">⛵ Pass: ${escapeHtml(exp.experience_name)}</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Ref: ${escapeHtml(exp.id)} • ${exp.tickets} Passes • Total: $${exp.total_price_usd}</div>
+                ${exp.receipt ? `<div style="font-size: 10px; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">🔏 ECDSA Signed (ES256 • ${escapeHtml(exp.receipt.kid)})</div>` : ''}
+              </div>
+              <div class="iso-qr-wrapper" title="Scannable ISO/IEC 18004 Mobile Pass" style="flex-shrink: 0;">
+                ${generateISO18004QR(exp.id, 64)}
+              </div>
+            </div>
+          ` : ''}
         `;
       }
     }
+    TripStewardApp.renderInspectorReceipts();
+  }
+
+  static renderInspectorReceipts() {
+    const list = document.querySelector("#inspector-receipts-list");
+    if (!list) return;
+
+    const receipts = [];
+    if (TripStewardApp.vault.hotelReservation?.receipt) {
+      receipts.push(TripStewardApp.vault.hotelReservation.receipt);
+    }
+    if (TripStewardApp.vault.airportTransfer?.receipt) {
+      receipts.push(TripStewardApp.vault.airportTransfer.receipt);
+    }
+    if (TripStewardApp.vault.cityExperience?.receipt) {
+      receipts.push(TripStewardApp.vault.cityExperience.receipt);
+    }
+
+    if (receipts.length === 0) {
+      list.innerHTML = `<div style="color: #64748b; font-size: 11px;">No provider action receipts signed in this session yet. Run the demo or book directly to generate WebCrypto signatures.</div>`;
+      return;
+    }
+
+    list.innerHTML = receipts.map((r, i) => `
+      <div style="background: #1e293b; padding: 8px; border-radius: 6px; border-left: 3px solid #38bdf8;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="color: #f1f5f9;">${escapeHtml(r.provider)}</strong>
+          <span style="color: #38bdf8; font-size: 10px;">${escapeHtml(r.kid)}</span>
+        </div>
+        <div style="font-size: 10px; color: #94a3b8; margin: 2px 0;">Alg: ${escapeHtml(r.algorithm)} • Issued: ${escapeHtml(new Date(r.issuedAt).toLocaleTimeString())}</div>
+        <div style="font-size: 10px; color: #cbd5e1; word-break: break-all;">Sig: ${escapeHtml(r.signature.slice(0, 32))}...</div>
+      </div>
+    `).join("");
+  }
+
+  static async verifySignatures(tamper = false) {
+    const out = document.querySelector("#verification-status-output");
+    if (!out) return;
+
+    const receipts = [];
+    if (TripStewardApp.vault.hotelReservation?.receipt) {
+      receipts.push({ name: "HarborView Hotel", receipt: { ...TripStewardApp.vault.hotelReservation.receipt } });
+    }
+    if (TripStewardApp.vault.airportTransfer?.receipt) {
+      receipts.push({ name: "CityGlide Fleet", receipt: { ...TripStewardApp.vault.airportTransfer.receipt } });
+    }
+    if (TripStewardApp.vault.cityExperience?.receipt) {
+      receipts.push({ name: "MetroPass Experiences", receipt: { ...TripStewardApp.vault.cityExperience.receipt } });
+    }
+
+    if (receipts.length === 0) {
+      out.innerHTML = `<span style="color: #f59e0b;">⚠️ No signed receipts to verify. Reserve a service first.</span>`;
+      return;
+    }
+
+    out.innerHTML = `<span style="color: #38bdf8;">⏳ Verifying ${receipts.length} signatures with crypto.subtle.verify...</span>`;
+
+    let results = [];
+    const t0 = performance.now();
+
+    for (const item of receipts) {
+      const r = item.receipt;
+      const pubKey = PROVIDER_PUBLIC_KEYS[r.kid];
+      if (!pubKey) {
+        results.push({ name: item.name, valid: false, error: "Public key not found in JWKS" });
+        continue;
+      }
+
+      if (tamper && item.name.includes("HarborView")) {
+        // Tamper with payload
+        r.payload = { ...r.payload, total_stay_cost: 9.99 };
+        r.canonicalPayload = canonicalizeJson(r.payload);
+      }
+
+      const res = await verifyActionReceipt(r, pubKey);
+      results.push({ name: item.name, valid: res.valid, kid: r.kid, error: res.error });
+    }
+
+    const duration = (performance.now() - t0).toFixed(2);
+
+    const allValid = results.every(r => r.valid);
+    out.innerHTML = `
+      <div style="margin-top: 6px; padding: 8px; border-radius: 6px; background: ${allValid ? '#064e3b' : '#7f1d1d'}; color: white;">
+        <strong>${allValid ? '✅ All ECDSA Signatures Cryptographically Valid' : '❌ Cryptographic Verification Failed (Tamper Caught!)'}</strong>
+        <div style="font-size: 10px; margin-top: 4px; opacity: 0.9;">Verified in ${duration} ms via native WebCrypto subtle.verify</div>
+        <div style="margin-top: 4px;">
+          ${results.map(r => `<div>${r.valid ? '✓' : '✗'} ${escapeHtml(r.name)} (${escapeHtml(r.kid)}): ${r.valid ? 'VALID' : (tamper ? 'SIGNATURE MISMATCH (TAMPER DETECTED)' : escapeHtml(r.error || 'INVALID'))}</div>`).join("")}
+        </div>
+      </div>
+    `;
   }
 
   static renderItinerary() {

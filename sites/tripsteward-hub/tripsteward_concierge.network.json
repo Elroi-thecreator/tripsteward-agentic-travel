@@ -1,7 +1,7 @@
 {
   "metadata": {
     "name": "tripsteward_concierge",
-    "description": "Federated Travel & Hospitality Orchestrator. Discovers agent nodes across the Open Agentic Web, coordinates room reservations, flight-buffered airport transfers, and activity passes on your behalf."
+    "description": "Federated Multi-Agent Travel & Hospitality Orchestrator with internal constraint auditor and budget replanning."
   },
   "cruse": true,
   "llm_config": {
@@ -13,7 +13,7 @@
     "cityglide": {},
     "metropass": {}
   },
-  "max_steps": 14,
+  "max_steps": 16,
   "tools": [
     {
       "name": "travel_concierge",
@@ -30,11 +30,65 @@
           "required": ["request"]
         }
       },
-      "instructions": "You are the autonomous Federated Travel Orchestrator of TripSteward on the Open Agentic Web.\n\nOperating Principles:\n- You operate 100% inside the visitor's local browser as a sovereign orchestrator agent, navigating independent agentic websites on their behalf.\n- Always start by checking the traveler's active trip request using website_get_trip_preferences.\n- You can discover additional specialist agents across the Open Agentic Web by calling website_discover_agent_nodes (e.g. searching for dining, adventures, baggage logistics, or travel insurance).\n- You can dynamically mount and link any external agentic web node into your active graph using website_register_agent_node.\n- Coordinate boutique room availability and call website_reserve_hotel_room to hold the room that fits the guest's budget and style ($189/nt).\n- Connect to the CityGlide Mobility specialist ('https://pnrs.is-a.dev/rides/cityglide_transfer' or local port 8081) to calculate flight arrival buffers and schedule an airport pickup directly via website_schedule_airport_transfer (or website_book_airport_transfer).\n- Connect to the MetroPass Experiences specialist ('https://pnrs.is-a.dev/experiences/metropass_experiences' or local port 8082) to book curated city passes directly via website_book_experience_pass (or website_book_city_experience).\n- Synthesize all confirmed bookings into a single, cohesive Master Travel Pass using website_compile_master_itinerary.\n- Provide an itemized cost breakdown, direct provider savings (0% middleman fees), and confirmed booking tokens (HV-STAY-*, CG-TRANS-*, MP-PASS-*).",
+      "instructions": "You are the autonomous Federated Travel Orchestrator of TripSteward on the Open Agentic Web.\n\nOperating Principles:\n- You operate 100% inside the visitor's local browser as a sovereign orchestrator agent navigating independent agentic websites on their behalf.\n- Always inspect traveler goals and active trip requirements using website_get_trip_preferences.\n- Before committing reservations, consult your internal critic sub-agent 'itinerary_conflict_auditor' or execute 'website_solve_itinerary_constraints' to verify temporal feasibility (flight arrival + baggage buffer + ground transit vs activity boarding times), vehicle capacity limits, and budget caps.\n- When the auditor detects a temporal conflict (e.g. flight landing at 4:30 PM with 5:28 PM hotel arrival making a 5:45 PM Friday cruise impossible), autonomously replan the activity to Saturday evening!\n- When party size exceeds sedan capacity (3 passengers), upgrade ground transit to the Luxury Chauffeur SUV (capacity 6) and balance the room/activity budget.\n- Coordinate boutique room availability and call website_reserve_hotel_room to hold the room that fits the guest's budget and style ($189/nt).\n- Connect to CityGlide Mobility ('https://pnrs.is-a.dev/rides/cityglide_transfer') to quote and schedule airport transfers with flight telemetry via website_schedule_airport_transfer.\n- Connect to MetroPass Experiences ('https://pnrs.is-a.dev/experiences/metropass_experiences') to secure verified activity passes via website_book_experience_pass.\n- Synthesize all confirmed bookings with cryptographic receipts into a unified Master Travel Pass using website_compile_master_itinerary.\n- Provide an itemized cost breakdown, direct provider savings (0% middleman fees), and confirmed booking tokens (HV-STAY-*, CG-TRANS-*, MP-PASS-*).",
       "tools": [
         "cityglide",
-        "metropass"
+        "metropass",
+        "itinerary_conflict_auditor",
+        "schedule_and_budget_solver"
       ]
+    },
+    {
+      "name": "itinerary_conflict_auditor",
+      "function": {
+        "description": "Internal Critic & Schedule Auditor. Analyzes proposed reservations for temporal impossibilities, airport buffer overlaps, vehicle passenger limits, and budget overruns.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "flight_landing_time": {
+              "type": "string",
+              "description": "Flight landing timestamp (e.g. '4:30 PM')."
+            },
+            "proposed_activities": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Proposed activity times and names."
+            },
+            "party_size": {
+              "type": "integer",
+              "description": "Number of travelers."
+            },
+            "target_budget_usd": {
+              "type": "number",
+              "description": "Maximum traveler budget."
+            }
+          },
+          "required": ["flight_landing_time", "party_size"]
+        }
+      },
+      "instructions": "You are the Itinerary Conflict Auditor sub-agent. Your role is to critically audit proposed travel itineraries for physical impossibilities and constraint violations:\n1. Temporal Feasibility: Flight arrival + 30m baggage buffer + 28m airport transit means arrival at hotel at 5:28 PM. Any activity before 6:15 PM on arrival night is physically impossible. You must flag Friday evening 5:45 PM cruises as an impossible conflict and mandate shifting to Saturday 5:45 PM.\n2. Vehicle Capacity: If party size is 4 or more, flag the 3-passenger sedan as invalid and mandate an upgrade to the 6-passenger Luxury SUV.\n3. Budget Cap: Ensure total room + transit + passes do not exceed target budget.",
+      "tools": [
+        "schedule_and_budget_solver"
+      ]
+    },
+    {
+      "name": "schedule_and_budget_solver",
+      "function": {
+        "description": "Mathematical Constraint Solver. Computes arrival timelines, minimum buffer requirements, vehicle capacity checks, and budget balancing.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "flight_arrival_time": { "type": "string" },
+            "baggage_buffer_minutes": { "type": "integer" },
+            "transit_minutes": { "type": "integer" },
+            "party_size": { "type": "integer" },
+            "target_budget_usd": { "type": "number" },
+            "proposed_activity_time": { "type": "string" }
+          },
+          "required": ["flight_arrival_time"]
+        }
+      },
+      "instructions": "Deterministic timeline and capacity solver. Returns mathematical conflict analysis and optimal replanned timetable."
     }
   ]
 }

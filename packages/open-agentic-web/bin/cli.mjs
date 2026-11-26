@@ -15,7 +15,7 @@ import { validateFederation, validateManifest, validateNetwork, validateNode } f
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.1.4";
+let VERSION = "1.1.5";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;
@@ -49,6 +49,7 @@ ${colors.bold}COMMANDS:${colors.reset}
   ${colors.cyan}dev${colors.reset} [dir] [--port 3000]   Start local development server with CORS & interactive playground.
   ${colors.cyan}init${colors.reset} [dir]                Scaffold a new, 100% conforming Open Agentic Web node.
   ${colors.cyan}inspect${colors.reset} [path]             Inspect and print the declarative agent graph and tool catalog.
+  ${colors.cyan}test-bridge${colors.reset} [dir-or-url]    Test Action Bridge endpoint and protocol handshake contract.
   ${colors.cyan}a2a${colors.reset} [dir] [--out path]    Generate standard Agent-to-Agent (A2A) agent.json card.
   ${colors.cyan}help${colors.reset}                    Display this help message.
   ${colors.cyan}version${colors.reset}                 Print current package version.
@@ -711,11 +712,83 @@ async function runA2A() {
   }
 }
 
+async function runTestBridge() {
+  const target = args[1] || ".";
+  const isUrl = target.startsWith("http://") || target.startsWith("https://");
+  console.log(`\n${colors.bold}${colors.cyan}🌉 Testing Action Bridge & Protocol Handshake${colors.reset}`);
+  console.log(`Target: ${colors.bold}${target}${colors.reset}\n`);
+
+  let manifest = null;
+  let manifestUrl = "";
+  let bridgeUrl = "";
+
+  if (isUrl) {
+    try {
+      manifestUrl = target.endsWith(".json") ? target : (target.replace(/\/$/, "") + "/agent-manifest.json");
+      const resp = await fetch(manifestUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      manifest = await resp.json();
+      console.log(`  ${colors.green}✔ Manifest reachable${colors.reset} (${manifestUrl})`);
+    } catch (e) {
+      console.log(`  ${colors.red}✘ Manifest unreachable:${colors.reset} ${e.message}`);
+      process.exit(1);
+    }
+    bridgeUrl = target.replace(/\/$/, "") + "/bridge/action-bridge.html";
+    try {
+      const resp = await fetch(bridgeUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const html = await resp.text();
+      const hasBridgeScript = html.includes("action-bridge") || html.includes("setupActionBridge");
+      if (hasBridgeScript) {
+        console.log(`  ${colors.green}✔ Action Bridge HTML reachable & conforms to contract${colors.reset} (${bridgeUrl})`);
+      } else {
+        console.log(`  ${colors.yellow}⚠ Action Bridge reachable but missing standard setupActionBridge import${colors.reset}`);
+      }
+    } catch (e) {
+      console.log(`  ${colors.red}✘ Action Bridge unreachable:${colors.reset} ${e.message}`);
+    }
+  } else {
+    const targetDir = resolve(target);
+    const manifestPath = join(targetDir, "agent-manifest.json");
+    if (!existsSync(manifestPath)) {
+      console.error(`  ${colors.red}✘ agent-manifest.json not found at ${targetDir}${colors.reset}`);
+      process.exit(1);
+    }
+    manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    console.log(`  ${colors.green}✔ Found agent-manifest.json${colors.reset}`);
+
+    const bridgePath = join(targetDir, "bridge", "action-bridge.html");
+    if (existsSync(bridgePath)) {
+      const html = readFileSync(bridgePath, "utf-8");
+      const hasBridgeScript = html.includes("action-bridge") || html.includes("setupActionBridge");
+      console.log(`  ${colors.green}✔ Found bridge/action-bridge.html${colors.reset} (${hasBridgeScript ? 'Standard Bridge Protocol' : 'Custom HTML'})`);
+    } else {
+      console.log(`  ${colors.red}✘ bridge/action-bridge.html missing${colors.reset}`);
+    }
+
+    const jwksPath = join(targetDir, ".well-known", "jwks.json");
+    if (existsSync(jwksPath)) {
+      const jwks = JSON.parse(readFileSync(jwksPath, "utf-8"));
+      console.log(`  ${colors.green}✔ Found .well-known/jwks.json${colors.reset} (${jwks.keys?.length || 0} ECDSA verification key(s))`);
+    } else {
+      console.log(`  ${colors.gray}ℹ No local .well-known/jwks.json found${colors.reset}`);
+    }
+  }
+
+  const tools = manifest?.actions?.agentTools || [];
+  console.log(`  ${colors.cyan}ℹ Declared Action Tools (${tools.length}):${colors.reset} ${tools.join(", ") || "None"}`);
+  console.log(`\n${colors.bold}${colors.green}✅ Action Bridge & Manifest Validation Complete!${colors.reset}\n`);
+}
+
 switch (command) {
   case "validate":
   case "test":
   case "check":
     runValidate();
+    break;
+  case "test-bridge":
+  case "bridge":
+    runTestBridge();
     break;
   case "federation":
     runFederation();

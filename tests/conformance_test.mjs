@@ -4,6 +4,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
+import { verifyActionReceipt } from "../packages/open-agentic-web/src/actions.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
@@ -116,6 +117,10 @@ async function testActions() {
   assert(scheduleResult.success === true, "CityGlide schedules airport transfer");
   assert(scheduleResult.transfer_id.startsWith("CG-TRANS-"), "CityGlide issues unique transfer ID");
   assert(scheduleResult.driver_assigned.length > 0, "CityGlide assigns professional driver");
+  assert(scheduleResult.receipt && scheduleResult.receipt.algorithm === "ES256", "CityGlide issues signed ECDSA P-256 action receipt");
+  const cgJwks = JSON.parse(readFileSync(join(rootDir, "sites", "cityglide-node", ".well-known", "jwks.json"), "utf-8"));
+  const cgVerified = await verifyActionReceipt(scheduleResult.receipt, cgJwks.keys[0]);
+  assert(cgVerified.valid === true, "CityGlide ECDSA receipt passes cryptographic WebCrypto verification");
 
   const fleetTool = CityGlideActions.getFleetStatusAction();
   const fleetResult = await fleetTool.execute({});
@@ -139,6 +144,10 @@ async function testActions() {
   assert(passResult.success === true, "MetroPass issues experience pass voucher");
   assert(passResult.pass_code.startsWith("MP-PASS-"), "MetroPass generates scannable pass code");
   assert(passResult.total_price_usd === 158, "MetroPass calculates direct total price correctly ($79 x 2 = $158)");
+  assert(passResult.receipt && passResult.receipt.algorithm === "ES256", "MetroPass issues signed ECDSA P-256 action receipt");
+  const mpJwks = JSON.parse(readFileSync(join(rootDir, "sites", "metropass-node", ".well-known", "jwks.json"), "utf-8"));
+  const mpVerified = await verifyActionReceipt(passResult.receipt, mpJwks.keys[0]);
+  assert(mpVerified.valid === true, "MetroPass ECDSA receipt passes cryptographic WebCrypto verification");
 
   // Test TripSteward Hub Actions
   const hubActionsUrl = pathToFileURL(join(rootDir, "sites", "tripsteward-hub", "site-actions.js")).href;
@@ -159,6 +168,10 @@ async function testActions() {
   });
   assert(hotelRes.ok === true, "TripSteward holds hotel room reservation");
   assert(hotelRes.total_stay_cost === 378, "TripSteward computes room charges ($189 x 2 = $378)");
+  assert(hotelRes.receipt && hotelRes.receipt.algorithm === "ES256", "HarborView issues signed ECDSA P-256 action receipt");
+  const hvJwks = JSON.parse(readFileSync(join(rootDir, "sites", "tripsteward-hub", ".well-known", "jwks.json"), "utf-8"));
+  const hvVerified = await verifyActionReceipt(hotelRes.receipt, hvJwks.keys[0]);
+  assert(hvVerified.valid === true, "HarborView ECDSA receipt passes cryptographic WebCrypto verification");
 
   const bookTransferTool = HubActions.bookAirportTransferAction();
   const transRes = await bookTransferTool.execute({

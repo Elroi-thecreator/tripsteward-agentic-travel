@@ -1,0 +1,13 @@
+{
+  "keys": [
+    {
+      "key_ops": ["verify"],
+      "ext": true,
+      "kty": "EC",
+      "x": "aZ-sa51tZjXPoBgtL1LE9Vt1svlB2Tz8rAGKT5dNnCM",
+      "y": "DMOmBT1jdDj63PrH_xr4HlPgvbVyu0GFiP4Nnc4J32E",
+      "crv": "P-256",
+      "kid": "cityglide-key-1"
+    }
+  ]
+}

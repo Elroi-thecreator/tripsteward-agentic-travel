@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { ActionSecurityError, ActionValidationError, createActionRegistry, defineAction, validateSchema } from "../src/actions.js";
+import { ActionSecurityError, ActionValidationError, canonicalizeJson, createActionRegistry, defineAction, generateReceiptKeyPair, signActionReceipt, validateSchema, verifyActionReceipt } from "../src/actions.js";
 import { setupActionBridge } from "../src/bridge.js";
 
 describe("Open Agentic Web - Site Actions & Validation", () => {
@@ -338,5 +338,37 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
     assert.strictEqual(posted[0].msg.protocol, "nsdeploy-actions-v1");
 
     bridge.dispose();
+  });
+
+  it("signs and cryptographically verifies provider receipts using WebCrypto ECDSA P-256", async () => {
+    const { publicKeyJwk, privateKeyJwk } = await generateReceiptKeyPair();
+    assert.strictEqual(publicKeyJwk.kty, "EC");
+    assert.strictEqual(publicKeyJwk.crv, "P-256");
+
+    const payload = {
+      booking_id: "CG-TRANS-98124",
+      service: "CityGlide Executive EV Sedan",
+      fare_usd: 68.00,
+      timestamp: "2026-11-28T17:00:00Z"
+    };
+
+    const signedReceipt = await signActionReceipt(payload, privateKeyJwk, {
+      kid: "cityglide-key-2026",
+      provider: "CityGlide Autonomous Fleet"
+    });
+
+    assert.strictEqual(signedReceipt.algorithm, "ES256");
+    assert.strictEqual(signedReceipt.kid, "cityglide-key-2026");
+    assert.ok(typeof signedReceipt.signature === "string" && signedReceipt.signature.length > 20);
+
+    // Verify valid receipt
+    const verifyRes = await verifyActionReceipt(signedReceipt, publicKeyJwk);
+    assert.strictEqual(verifyRes.valid, true);
+    assert.strictEqual(verifyRes.provider, "CityGlide Autonomous Fleet");
+
+    // Tamper detection
+    const tamperedReceipt = { ...signedReceipt, payload: { ...payload, fare_usd: 0.00 }, canonicalPayload: null };
+    const tamperedRes = await verifyActionReceipt(tamperedReceipt, publicKeyJwk);
+    assert.strictEqual(tamperedRes.valid, false);
   });
 });
