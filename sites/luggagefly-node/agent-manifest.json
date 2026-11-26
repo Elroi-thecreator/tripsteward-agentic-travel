@@ -1,0 +1,29 @@
+{
+  "specification": "https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json",
+  "name": "LuggageFly Logistics",
+  "version": "1.0.0",
+  "description": "LuggageFly: Airport curbside to hotel direct luggage courier on the Open Agentic Web",
+  "networks": [
+    {
+      "name": "luggagefly_courier",
+      "hocon": "./luggagefly_courier.network.json",
+      "front_man": "courier_dispatcher"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
+    "agentTools": [
+      "schedule_baggage_transfer",
+      "track_luggage"
+    ]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}

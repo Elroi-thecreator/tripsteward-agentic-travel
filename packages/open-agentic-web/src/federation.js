@@ -83,6 +83,13 @@ export class AgentSwarm {
   }
 
   /**
+   * Get a registered node by ID.
+   */
+  getNode(id) {
+    return this.nodes.get(id);
+  }
+
+  /**
    * Export dynamic links.json structure.
    */
   exportLinks(hubNetworkName = "hub_orchestrator") {

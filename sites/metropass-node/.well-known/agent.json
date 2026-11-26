@@ -1,12 +1,12 @@
 {
-  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "MetroPass Experiences & City Curations",
   "description": "",
-  "url": "https://pnrs.is-a.dev/experiences/",
+  "url": "http://localhost",
   "version": "0.3.0",
   "provider": {
     "name": "MetroPass Experiences & City Curations",
-    "url": "https://pnrs.is-a.dev/experiences/"
+    "url": "http://localhost"
   },
   "identity": {
     "brand": "MetroPass Experiences & City Curations",
@@ -32,7 +32,7 @@
         "type": "object",
         "properties": {}
       },
-      "effect": "irreversible"
+      "effect": "read"
     },
     {
       "id": "get_available_catalog",
@@ -56,13 +56,13 @@
     "networks": [
       "metropass_experiences"
     ],
-    "actionBridgeUrl": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
+      "endpoint": "http://localhost/bridge/action-bridge.html"
     }
   ],
   "authentication": {

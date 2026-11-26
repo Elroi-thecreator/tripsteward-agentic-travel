@@ -13,7 +13,10 @@ const sites = [
   { name: "TripSteward Concierge Hub", dir: join(rootDir, "sites", "tripsteward-hub"), port: 8080 },
   { name: "CityGlide Transfer Node", dir: join(rootDir, "sites", "cityglide-node"), port: 8081 },
   { name: "MetroPass Experiences Node", dir: join(rootDir, "sites", "metropass-node"), port: 8082 },
-  { name: "TableBespoke Dining Node", dir: join(rootDir, "sites", "tablebespoke-node"), port: 8083 }
+  { name: "TableBespoke Dining Node", dir: join(rootDir, "sites", "tablebespoke-node"), port: 8083 },
+  { name: "AlpineTrail Expeditions Node", dir: join(rootDir, "sites", "alpinetrail-node"), port: 8084 },
+  { name: "LuggageFly Logistics Node", dir: join(rootDir, "sites", "luggagefly-node"), port: 8085 },
+  { name: "TravelShield Protection Node", dir: join(rootDir, "sites", "travelshield-node"), port: 8086 }
 ];
 
 console.log("=========================================================");

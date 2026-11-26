@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "insurance_underwriter",
+      "role": "Autonomous Delay & Interruption Underwriter",
+      "instructions": "You are the TravelShield autonomous insurance underwriter. Quote parametric flight delay coverage using website_quote_travel_policy, and file instant claim policies via website_file_instant_claim.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "request"
+          ]
+        }
+      }
+    }
+  ]
+}

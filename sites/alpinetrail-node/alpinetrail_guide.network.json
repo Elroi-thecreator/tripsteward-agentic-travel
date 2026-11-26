@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "alpine_guide",
+      "role": "Mountain, Ski & Wilderness Guide",
+      "instructions": "You are the AlpineTrail autonomous expedition guide. Check trail and snow conditions using website_check_trail_conditions, and reserve wilderness or backcountry passes directly via website_book_expedition_pass.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "request"
+          ]
+        }
+      }
+    }
+  ]
+}

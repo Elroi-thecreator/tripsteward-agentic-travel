@@ -104,17 +104,28 @@ export function createActionRegistry(options?: {
 }): ActionRegistry;
 export function validateSchema(schema: JSONSchema, data: any, path?: string): { valid: boolean; errors: string[] };
 
-export function toA2AAgentCard(manifest: any, options?: { baseUrl?: string }): {
+export function toA2AAgentCard(manifest: any, options?: { baseUrl?: string; url?: string; provider?: any; registry?: any }): {
   $schema: string;
   name: string;
   description: string;
   url: string;
   version: string;
+  provider?: {
+    name: string;
+    url?: string;
+  };
   identity: {
     brand: string;
     frontMan: string;
     category: string;
   };
+  skills: Array<{
+    id: string;
+    name: string;
+    description: string;
+    inputSchema: any;
+    effect: string;
+  }>;
   capabilities: {
     tools: string[];
     networks: string[];

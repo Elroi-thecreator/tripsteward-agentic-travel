@@ -81,13 +81,22 @@ export class AssistantMount {
   }
 
   static async reviewAction(items) {
+    if (AssistantMount.defaultReview) {
+      try {
+        return await AssistantMount.defaultReview(items);
+      } catch {}
+    }
     const first = Array.isArray(items) ? items[0] : items;
     const conf = AssistantMount.DIALOGS[first?.action || first?.name];
-    if (!conf) return AssistantMount.defaultReview ? AssistantMount.defaultReview(items) : true;
-    return window.confirm(`${conf.title}\n\n${conf.sentence}\n\nClick OK to '${conf.confirm}' or Cancel to '${conf.decline}'.`);
+    return window.confirm(`${conf ? conf.title : 'Action Authorization'}\n\n${conf ? conf.sentence : 'Authorize execution?'}`);
   }
 
   static async reviewConsent(peer) {
+    if (AssistantMount.defaultConsent) {
+      try {
+        return await AssistantMount.defaultConsent(peer);
+      } catch {}
+    }
     const label = peer?.peerLabel || peer?.peerOrigin || peer?.origin || "external provider";
     return window.confirm(`Authorize TripSteward Concierge to query independent provider node '${label}' on your behalf?`)
       ? "allow"

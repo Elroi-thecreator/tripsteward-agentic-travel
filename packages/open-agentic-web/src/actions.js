@@ -137,11 +137,17 @@ export function validateSchema(schema, data, path = "") {
     }
     if (schema.pattern) {
       try {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(data)) {
-          errors.push(`String ${fieldDesc} does not match pattern '${schema.pattern}'`);
+        if (schema.pattern.length > 250) {
+          errors.push(`Pattern ${fieldDesc} exceeds maximum length limit of 250 characters.`);
+        } else {
+          const regex = new RegExp(schema.pattern);
+          if (!regex.test(data)) {
+            errors.push(`String ${fieldDesc} does not match pattern '${schema.pattern}'`);
+          }
         }
-      } catch {}
+      } catch (err) {
+        errors.push(`Invalid regular expression pattern on ${fieldDesc}: ${err.message}`);
+      }
     }
     if (schema.format) {
       const format = schema.format.toLowerCase();
@@ -451,7 +457,7 @@ export function toA2AAgentCard(manifest, { baseUrl = "http://localhost", url = n
   });
 
   return {
-    $schema: "https://agent2agent.org/schemas/agent-card-v1.json",
+    $schema: "https://schemas.agent2agent.org/v1/agent-card.json",
     name: manifest.brand || manifest.name || "Agentic Web Node",
     description: manifest.description || "",
     url: cleanBaseUrl,
@@ -561,7 +567,7 @@ export function createConsentDialog({
     try {
       dialog.showModal();
     } catch {
-      cleanup(true);
+      cleanup(false);
     }
   });
 }

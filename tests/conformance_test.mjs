@@ -208,6 +208,28 @@ async function testActions() {
   const adventureSearch = await discoverTool.execute({ category: "Adventures" });
   assert(adventureSearch.ok === true && adventureSearch.results.some(r => r.id === "alpinetrail"), "TripSteward discovers agents by capability category");
 
+  // Verify all 4 specialist catalog entries resolve
+  const fullDirectory = await discoverTool.execute({});
+  assert(fullDirectory.results.some(r => r.id === "alpinetrail"), "Discovery directory resolves AlpineTrail node");
+  assert(fullDirectory.results.some(r => r.id === "luggagefly"), "Discovery directory resolves LuggageFly node");
+  assert(fullDirectory.results.some(r => r.id === "travelshield"), "Discovery directory resolves TravelShield node");
+
+  // Test dynamic arrival buffer engine for arbitrary flight times
+  const customQuote = await quoteTool.execute({ pickup_time: "2:15 PM", flight_number: "DL 1204" });
+  assert(customQuote.calculated_pickup_time.includes("2:45 PM"), "CityGlide computes dynamic buffer for non-4:30 PM flights (2:15 PM -> 2:45 PM)");
+
+  // Test multi-hub fleet filtering
+  const seaFleet = await fleetTool.execute({ hub: "SEA" });
+  assert(seaFleet.requested_hub === "SEA", "CityGlide accepts airport hub parameter");
+  assert(seaFleet.fleet_inventory.length >= 1, "CityGlide filters Seattle fleet inventory correctly");
+
+  // Test honest no-match handling in MetroPass
+  const noMatchSearch = await searchTool.execute({ city: "Tokyo", category: "all" });
+  assert(noMatchSearch.matched_count === 0, "MetroPass returns 0 matches for uncataloged cities without silent fallback");
+
+  // Test verified total cost calculation in master itinerary
+  assert(masterRes.verified_total_usd > 0, "TripSteward computes verified total cost across real bookings");
+
   const registerTool = HubActions.registerAgentNodeAction();
   const registerRes = await registerTool.execute({
     node_url: "https://example.com/agents/custom-guide",

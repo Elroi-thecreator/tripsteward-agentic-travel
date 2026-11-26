@@ -118,8 +118,8 @@ export class SiteActions {
         },
         additionalProperties: false
       },
-      execute: async () => {
-        return CityGlideApp.vault.getFleetStatus();
+      execute: async (args) => {
+        return CityGlideApp.vault.getFleetStatus(args);
       }
     };
   }

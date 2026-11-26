@@ -256,7 +256,8 @@ export function createActionBridgeClient({
   bridgeUrl,
   brand = "Peer Node",
   timeoutMs = 15000,
-  windowObj = globalThis.window
+  windowObj = globalThis.window,
+  mode = "auto"
 } = {}) {
   if (!windowObj) {
     throw new Error("Action bridge client requires a browser window environment.");
@@ -264,14 +265,15 @@ export function createActionBridgeClient({
 
   let port = null;
   let iframe = null;
+  let popupWindow = null;
   let connectionPromise = null;
   const pendingRequests = new Map();
   let seq = 0;
 
   const targetOrigin = new URL(bridgeUrl, windowObj.location?.href || "http://localhost").origin;
 
-  function connect() {
-    if (port) return Promise.resolve(port);
+  function connect({ requirePopup = false } = {}) {
+    if (port && (!requirePopup || popupWindow)) return Promise.resolve(port);
     if (connectionPromise) return connectionPromise;
 
     connectionPromise = new Promise((resolve, reject) => {
@@ -280,9 +282,14 @@ export function createActionBridgeClient({
         reject(new Error(`Timed out connecting to action bridge at '${bridgeUrl}' (${brand})`));
       }, timeoutMs);
 
-      iframe = windowObj.document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = bridgeUrl;
+      const usePopup = mode === "popup" || requirePopup;
+      if (usePopup && typeof windowObj.open === "function") {
+        popupWindow = windowObj.open(bridgeUrl, `oaw_bridge_${Date.now()}`, "width=600,height=700");
+      } else {
+        iframe = windowObj.document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = bridgeUrl;
+      }
 
       function onMessage(event) {
         if (event.origin !== targetOrigin || event.data?.protocol !== ACTION_BRIDGE_PROTOCOL) return;
@@ -292,7 +299,8 @@ export function createActionBridgeClient({
           port = channel.port1;
 
           port.onmessage = ({ data }) => {
-            if (data?.type === "connected") {
+            // Support both OAW explicit { type: "connected" } and nsdeploy catalog/immediate response
+            if (data?.type === "connected" || (data?.id === 0 && data?.ok)) {
               clearTimeout(timeout);
               cleanup();
               resolve(port);
@@ -307,11 +315,15 @@ export function createActionBridgeClient({
             }
           };
 
-          iframe.contentWindow?.postMessage(
+          const targetWin = iframe ? iframe.contentWindow : popupWindow;
+          targetWin?.postMessage(
             { type: "connect", protocol: ACTION_BRIDGE_PROTOCOL },
             targetOrigin,
             [channel.port2]
           );
+
+          // Proactively probe with a catalog ping (id: 0) which both nsdeploy and OAW answer immediately!
+          port.postMessage({ id: 0, type: "catalog" });
         }
       }
 
@@ -320,7 +332,9 @@ export function createActionBridgeClient({
       }
 
       windowObj.addEventListener("message", onMessage);
-      windowObj.document.body.appendChild(iframe);
+      if (iframe) {
+        windowObj.document.body.appendChild(iframe);
+      }
     }).catch(err => {
       connectionPromise = null;
       throw err;
@@ -330,11 +344,11 @@ export function createActionBridgeClient({
   }
 
   return {
-    async execute(actionName, args = {}, { signal = null } = {}) {
+    async execute(actionName, args = {}, { signal = null, requirePopup = false } = {}) {
       if (signal?.aborted) {
         throw new DOMException("The action execution was aborted.", "AbortError");
       }
-      await connect();
+      await connect({ requirePopup });
       const id = ++seq;
       const requestId = `req_${id}_${Date.now()}`;
 

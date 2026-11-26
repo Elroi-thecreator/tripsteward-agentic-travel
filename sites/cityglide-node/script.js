@@ -78,15 +78,47 @@ export class CityGlideApp {
       }
     ],
 
+    calculateArrivalBuffer(timeStr, flightNumber = "") {
+      if (!timeStr) return "5:00 PM (+30 min flight arrival buffer)";
+      const match = timeStr.match(/(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?/);
+      if (!match) {
+        return `${timeStr} (+30 min flight arrival buffer)`;
+      }
+
+      let hours = parseInt(match[1], 10);
+      let minutes = parseInt(match[2], 10);
+      const meridiem = match[3] ? match[3].toUpperCase() : null;
+
+      // Determine buffer: domestic 30m, international 45m
+      const isInternational = flightNumber && (flightNumber.startsWith("BA") || flightNumber.startsWith("LH") || flightNumber.startsWith("AF") || flightNumber.startsWith("JL") || flightNumber.startsWith("CX") || flightNumber.startsWith("SQ"));
+      const bufferMinutes = isInternational ? 45 : 30;
+
+      minutes += bufferMinutes;
+      if (minutes >= 60) {
+        hours += Math.floor(minutes / 60);
+        minutes = minutes % 60;
+      }
+
+      const formattedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+      let formattedTime = "";
+      if (meridiem) {
+        if (hours > 12) {
+          hours -= 12;
+        } else if (hours === 0) {
+          hours = 12;
+        }
+        formattedTime = `${hours}:${formattedMinutes} ${meridiem}`;
+      } else {
+        formattedTime = `${hours}:${formattedMinutes}`;
+      }
+
+      return `${formattedTime} (+${bufferMinutes} min flight arrival buffer)`;
+    },
+
     quoteService(args) {
       const passengers = args.passengers || 2;
       const flight = args.flight_number || "UA 482";
-      let recommendedPickup = args.pickup_time || "5:00 PM";
-
-      // Calculate buffer if flight arrival provided
-      if (args.pickup_time && args.pickup_time.includes("4:30")) {
-        recommendedPickup = "5:00 PM (+30 min flight arrival buffer)";
-      }
+      const recommendedPickup = this.calculateArrivalBuffer(args.pickup_time || "4:30 PM", flight);
 
       return {
         origin: args.airport_code ? `${args.airport_code} Airport` : "SFO Terminal 2",
@@ -160,12 +192,25 @@ export class CityGlideApp {
       };
     },
 
-    getFleetStatus() {
+    getFleetStatus(args = {}) {
+      const hubFilter = args?.hub ? args.hub.trim().toUpperCase() : null;
+      let inventory = this.fleet;
+      let hubName = "All Active Airport Hubs (SFO, SEA, AUS)";
+
+      if (hubFilter) {
+        inventory = this.fleet.filter(v => v.hub.toUpperCase().includes(hubFilter));
+        if (hubFilter === "SFO") hubName = "San Francisco International (SFO)";
+        else if (hubFilter === "SEA") hubName = "Seattle-Tacoma International (SEA)";
+        else if (hubFilter === "AUS") hubName = "Austin-Bergstrom International (AUS)";
+        else hubName = `${hubFilter} Regional Hub`;
+      }
+
       return {
-        hub: "San Francisco International (SFO)",
-        active_vehicles: this.fleet.length,
+        hub: hubName,
+        requested_hub: hubFilter || "ALL",
+        active_vehicles: inventory.length,
         average_wait_minutes: 4,
-        fleet_inventory: this.fleet
+        fleet_inventory: inventory
       };
     }
   };
@@ -239,18 +284,18 @@ export class CityGlideApp {
 
         quoteResult.innerHTML = `
           <div class="quote-card animate-fade">
-            <h4>Quote from ${q.origin} to ${q.destination}</h4>
-            <p class="flight-buffer-note">⚡ Flight ${q.flight_number} Landing Buffer: Curbside pickup at <strong>${q.calculated_pickup_time}</strong> (${q.estimated_transit_minutes} mins estimated transit)</p>
+            <h4>Quote from ${escapeHtml(q.origin)} to ${escapeHtml(q.destination)}</h4>
+            <p class="flight-buffer-note">⚡ Flight ${escapeHtml(q.flight_number)} Landing Buffer: Curbside pickup at <strong>${escapeHtml(q.calculated_pickup_time)}</strong> (${escapeHtml(String(q.estimated_transit_minutes))} mins estimated transit)</p>
             <div class="vehicle-options-grid">
               ${q.options.map(opt => `
                 <div class="opt-card">
-                  <h5>${opt.vehicle_class}</h5>
-                  <div class="opt-price">$${opt.fare_usd} <span>USD</span></div>
-                  <p class="opt-models">${opt.models}</p>
+                  <h5>${escapeHtml(opt.vehicle_class)}</h5>
+                  <div class="opt-price">$${Number(opt.fare_usd).toFixed(2)} <span>USD</span></div>
+                  <p class="opt-models">${escapeHtml(opt.models)}</p>
                   <ul class="opt-perks">
-                    ${opt.features.map(f => `<li>✓ ${f}</li>`).join("")}
+                    ${opt.features.map(f => `<li>✓ ${escapeHtml(f)}</li>`).join("")}
                   </ul>
-                  <button class="btn-sm btn-outline" onclick="CityGlideApp.bookManual('${opt.vehicle_class}', ${opt.fare_usd})">Book This Class</button>
+                  <button class="btn-sm btn-outline" onclick="CityGlideApp.bookManual('${escapeHtml(opt.vehicle_class)}', ${opt.fare_usd})">Book This Class</button>
                 </div>
               `).join("")}
             </div>

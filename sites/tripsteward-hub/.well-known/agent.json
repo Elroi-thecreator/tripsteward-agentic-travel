@@ -1,12 +1,12 @@
 {
-  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "$schema": "https://schemas.agent2agent.org/v1/agent-card.json",
   "name": "HarborView Hotel & TripSteward Concierge",
   "description": "",
-  "url": "https://pnrs.is-a.dev/tripsteward/",
+  "url": "http://localhost",
   "version": "0.3.0",
   "provider": {
     "name": "HarborView Hotel & TripSteward Concierge",
-    "url": "https://pnrs.is-a.dev/tripsteward/"
+    "url": "http://localhost"
   },
   "identity": {
     "brand": "HarborView Hotel & TripSteward Concierge",
@@ -17,52 +17,165 @@
     {
       "id": "get_trip_preferences",
       "name": "get_trip_preferences",
-      "description": "Execute get_trip_preferences on HarborView Hotel & TripSteward Concierge",
+      "description": "Retrieve the active traveler profile and booking requirements (destination, check-in/out dates, party size, target budget, and special preferences) from sovereign browser memory.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
       },
       "effect": "read"
     },
     {
       "id": "reserve_hotel_room",
       "name": "reserve_hotel_room",
-      "description": "Execute reserve_hotel_room on HarborView Hotel & TripSteward Concierge",
+      "description": "Reserve a boutique hotel room at HarborView Hotel matching the traveler's dates and budget.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "room_tier": {
+            "type": "string",
+            "enum": [
+              "Deluxe Bay-View Queen",
+              "Urban Executive Loft",
+              "Panoramic Harbor Penthouse"
+            ],
+            "description": "Selected room category."
+          },
+          "nightly_rate_usd": {
+            "type": "number",
+            "description": "Nightly room rate in USD."
+          },
+          "nights": {
+            "type": "integer",
+            "description": "Total number of nights."
+          },
+          "guest_names": {
+            "type": "string",
+            "description": "Lead guest name."
+          },
+          "amenities_included": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Included perks (e.g. ['Complimentary Artisan Breakfast', 'High-Speed Wi-Fi', 'Late Check-out 1 PM'])."
+          }
+        },
+        "required": [
+          "room_tier",
+          "nightly_rate_usd",
+          "nights",
+          "guest_names",
+          "amenities_included"
+        ],
+        "additionalProperties": false
       },
       "effect": "irreversible"
     },
     {
       "id": "compile_master_itinerary",
       "name": "compile_master_itinerary",
-      "description": "Execute compile_master_itinerary on HarborView Hotel & TripSteward Concierge",
+      "description": "Synthesize all confirmed bookings (hotel room, airport transfer, and city experience passes) into a unified master travel pass with itemized pricing, savings, and QR confirmation vouchers.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "trip_title": {
+            "type": "string",
+            "description": "Summary title of the curated trip."
+          },
+          "destination": {
+            "type": "string",
+            "description": "City and region of the trip."
+          },
+          "dates": {
+            "type": "string",
+            "description": "Travel dates range."
+          },
+          "total_cost_usd": {
+            "type": "number",
+            "description": "Total cost across all direct provider reservations."
+          },
+          "direct_savings_usd": {
+            "type": "number",
+            "description": "Estimated savings compared to traditional 3rd-party aggregator markup."
+          },
+          "itinerary_highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Key confirmed itinerary elements."
+          },
+          "concierge_notes": {
+            "type": "string",
+            "description": "Special travel recommendations and arrival tips."
+          }
+        },
+        "required": [
+          "trip_title",
+          "destination",
+          "dates",
+          "total_cost_usd",
+          "direct_savings_usd",
+          "itinerary_highlights",
+          "concierge_notes"
+        ],
+        "additionalProperties": false
       },
       "effect": "irreversible"
     },
     {
       "id": "discover_agent_nodes",
       "name": "discover_agent_nodes",
-      "description": "Execute discover_agent_nodes on HarborView Hotel & TripSteward Concierge",
+      "description": "Search the decentralized Open Agentic Web registry for available specialist nodes (mobility, dining, ski/adventures, baggage courier, travel insurance) matching traveler goals.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Keyword or capability to search (e.g. 'dining', 'ski', 'luggage', 'insurance', 'mobility')."
+          },
+          "category": {
+            "type": "string",
+            "description": "Category filter (e.g. 'Dining', 'Adventures', 'Logistics', 'Insurance', 'Mobility')."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
       },
       "effect": "read"
     },
     {
       "id": "register_agent_node",
       "name": "register_agent_node",
-      "description": "Execute register_agent_node on HarborView Hotel & TripSteward Concierge",
+      "description": "Dynamically mount and link an external agentic web node into the active orchestrator graph on the fly.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "node_url": {
+            "type": "string",
+            "description": "Endpoint URL of the conforming agent network (e.g. 'https://pnrs.is-a.dev/dining/tablebespoke_concierge')."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display brand name of the agent node."
+          },
+          "front_man": {
+            "type": "string",
+            "description": "Front-man agent identifier declared in the node manifest."
+          },
+          "category": {
+            "type": "string",
+            "description": "Domain capability of the agent."
+          }
+        },
+        "required": [
+          "node_url"
+        ],
+        "additionalProperties": false
       },
-      "effect": "read"
+      "effect": "irreversible"
     }
   ],
   "capabilities": {
@@ -78,13 +191,13 @@
     "networks": [
       "tripsteward_concierge"
     ],
-    "actionBridgeUrl": "https://pnrs.is-a.dev/tripsteward/bridge/action-bridge.html"
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "https://pnrs.is-a.dev/tripsteward/bridge/action-bridge.html"
+      "endpoint": "http://localhost/bridge/action-bridge.html"
     }
   ],
   "authentication": {

@@ -199,28 +199,82 @@ export class TripStewardVault {
     };
   }
 
-  addAgentOnTheFly(agentData = {}) {
-    // Check if in catalog or custom
-    let agent = this.catalogAgents.find(a => a.id === agentData.id || a.url === agentData.node_url);
+  async addAgentOnTheFly(agentData = {}) {
+    let nodeUrl = agentData.node_url || agentData.url;
+    let agent = null;
 
-    if (!agent) {
-      // Create custom node entry
-      const cleanName = (agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const customId = `custom-${cleanName}`;
+    // Check if in catalog
+    const catalogEntry = this.catalogAgents.find(a => a.id === agentData.id || (nodeUrl && a.url.includes(nodeUrl)));
+
+    if (catalogEntry) {
+      agent = { ...catalogEntry, status: "CONNECTED" };
+    } else if (nodeUrl) {
+      // Validate by attempting to fetch manifest
+      try {
+        let manifestUrl = nodeUrl.replace(/\/$/, "");
+        if (!manifestUrl.endsWith("agent-manifest.json")) {
+          manifestUrl = manifestUrl.replace(/\/[^/]+$/, "") + "/agent-manifest.json";
+        }
+        if (typeof fetch === "function") {
+          const resp = await fetch(manifestUrl);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const manifest = await resp.json();
+          const cleanName = (manifest.brand || manifest.name || agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          agent = {
+            id: `custom-${cleanName}`,
+            name: manifest.brand || manifest.name || agentData.name || "Custom Node",
+            role: manifest.networks?.[0]?.front_man || "specialist_agent",
+            front_man: manifest.networks?.[0]?.front_man || "specialist_agent",
+            url: nodeUrl,
+            tools: manifest.actions?.agentTools || agentData.tools || ["query_service", "book_direct"],
+            category: agentData.category || "Specialist Node",
+            description: manifest.description || `External agentic node dynamically linked from ${nodeUrl}`,
+            status: "CONNECTED",
+            icon: "🔌"
+          };
+        } else {
+          agent = {
+            id: `custom-${(agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+            name: agentData.name || "Custom Agentic Web Node",
+            role: agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
+            front_man: agentData.front_man || "service_specialist",
+            url: nodeUrl,
+            tools: agentData.tools || ["query_service", "book_direct"],
+            category: agentData.category || "Custom Service",
+            description: `External agentic node dynamically linked from ${nodeUrl}`,
+            status: "CONNECTED",
+            icon: "🔌"
+          };
+        }
+      } catch (err) {
+        // Fallback to registering with declared metadata if offline or mock URL in tests
+        const cleanName = (agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        agent = {
+          id: `custom-${cleanName}`,
+          name: agentData.name || "Custom Agentic Web Node",
+          role: agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
+          front_man: agentData.front_man || "service_specialist",
+          url: nodeUrl,
+          tools: agentData.tools || ["query_service", "book_direct"],
+          category: agentData.category || "Custom Service",
+          description: `External agentic node dynamically linked from ${nodeUrl}`,
+          status: "CONNECTED",
+          icon: "🔌"
+        };
+      }
+    } else {
       agent = {
-        id: customId,
+        id: `custom-${Date.now()}`,
         name: agentData.name || "Custom Agentic Web Node",
-        role: agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
-        front_man: agentData.front_man || "service_specialist",
-        url: agentData.node_url,
-        tools: agentData.tools || ["query_service", "book_direct"],
-        category: agentData.category || "Custom Service",
-        description: `External agentic node dynamically linked from ${agentData.node_url}`,
+        role: "Specialist Service Agent",
+        front_man: "service_specialist",
+        url: "",
+        tools: ["query_service", "book_direct"],
+        category: "Custom Service",
+        description: "External custom agent node",
         status: "CONNECTED",
         icon: "🔌"
       };
-    } else {
-      agent.status = "CONNECTED";
     }
 
     if (!this.registeredAgents.some(a => a.id === agent.id)) {
@@ -241,9 +295,12 @@ export class TripStewardVault {
       console.warn("Could not wire agent to live engine:", e);
     }
 
-    if (typeof TripStewardApp !== "undefined" && typeof TripStewardApp.renderSwarm === "function") {
-      TripStewardApp.renderSwarm();
-      TripStewardApp.appendSimulatedMessage("bot", `🔌 **Orchestrator Link:** Successfully mounted new agent **${agent.name}** (${agent.url}) on the fly. Declared machine tools: \`${agent.tools.join("`, `")}\`.`);
+    if (typeof TripStewardApp !== "undefined") {
+      if (typeof TripStewardApp.renderSwarm === "function") TripStewardApp.renderSwarm();
+      if (typeof TripStewardApp.renderDynamicCards === "function") TripStewardApp.renderDynamicCards();
+      if (typeof TripStewardApp.appendSimulatedMessage === "function") {
+        TripStewardApp.appendSimulatedMessage("bot", `🔌 **Orchestrator Link:** Successfully mounted new agent **${agent.name}** (${agent.url}) on the fly. Declared machine tools: \`${(agent.tools || []).join("`, `")}\`.`);
+      }
     }
 
     return {
@@ -357,18 +414,38 @@ export class TripStewardVault {
     };
   }
 
-  compileMasterItinerary(itinerary) {
+  compileMasterItinerary(itinerary = {}) {
+    const hotelCost = this.hotelReservation ? (this.hotelReservation.nightly_rate_usd * this.hotelReservation.nights) : 0;
+    const transferCost = this.airportTransfer ? this.airportTransfer.fare_usd : 0;
+    const expCost = this.cityExperience ? this.cityExperience.total_price_usd : 0;
+    let extraCost = 0;
+    for (const eb of this.extraBookings) {
+      extraCost += Number(eb.total_cost_usd || eb.price_usd || 0);
+    }
+    const verifiedTotal = (hotelCost + transferCost + expCost + extraCost) || itinerary.total_cost_usd || 604.00;
+    const verifiedSavings = itinerary.direct_savings_usd || Math.round(verifiedTotal * 0.266);
+
     this.masterItinerary = {
       generated_at: new Date().toISOString(),
       trip_code: this.activeJourney.code,
+      total_cost_usd: verifiedTotal,
+      direct_savings_usd: verifiedSavings,
+      has_verified_reservations: Boolean(this.hotelReservation || this.airportTransfer || this.cityExperience),
       ...itinerary
     };
+    this.masterItinerary.total_cost_usd = verifiedTotal;
+    this.masterItinerary.direct_savings_usd = verifiedSavings;
+
     TripStewardApp.renderItinerary();
     return {
       ok: true,
       status: "COMMITTED_TO_CLIENT_SESSION",
-      itinerary_id: "TS-ITIN-" + Math.floor(100000 + Math.random() * 900000),
-      message: "Unified Master Travel Itinerary synthesized and sealed with direct provider savings."
+      itinerary_id: itinerary.itinerary_id || ("TS-ITIN-" + Math.floor(100000 + Math.random() * 900000)),
+      verified_total_usd: verifiedTotal,
+      direct_savings_usd: verifiedSavings,
+      total_reservations_sealed: (this.hotelReservation ? 1 : 0) + (this.airportTransfer ? 1 : 0) + (this.cityExperience ? 1 : 0) + this.extraBookings.length,
+      download_available: true,
+      message: `Unified Master Travel Itinerary synthesized with $${verifiedTotal} direct cost and $${verifiedSavings} direct savings.`
     };
   }
 
@@ -684,6 +761,85 @@ export class TripStewardApp {
         <button class="chip-unlink-btn" onclick="TripStewardApp.unlinkAgentNode('${escapeHtml(agent.id)}')" title="Unlink agent from swarm">&times;</button>
       </div>
     `).join("");
+
+    TripStewardApp.renderDynamicCards();
+  }
+
+  static renderDynamicCards() {
+    const container = document.querySelector("#dynamic-provider-cards-container");
+    if (!container) return;
+    const dynamicAgents = TripStewardApp.vault.registeredAgents.filter(
+      a => a.id !== "cityglide" && a.id !== "metropass"
+    );
+
+    if (dynamicAgents.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+
+    container.innerHTML = dynamicAgents.map(agent => {
+      const booked = TripStewardApp.vault.extraBookings.find(b => b.agent_id === agent.id);
+      return `
+        <article class="provider-card dynamic-provider-card" id="card-${escapeHtml(agent.id)}" style="margin-top: 16px; border: 1px solid rgba(14,165,233,0.3); background: #ffffff; border-radius: 12px; padding: 20px;">
+          <div class="provider-card-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div class="provider-brand" style="display: flex; gap: 12px; align-items: center;">
+              <span class="provider-logo" style="font-size: 1.8rem;">${escapeHtml(agent.icon || "🔌")}</span>
+              <div>
+                <h3 class="provider-name" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #0f172a;">${escapeHtml(agent.name)}</h3>
+                <p class="provider-category" style="margin: 2px 0 0; font-size: 0.85rem; color: #64748b;">${escapeHtml(agent.category || "Specialist Node")} • ${escapeHtml(agent.role || agent.front_man)}</p>
+              </div>
+            </div>
+            <span class="status-pill ${booked ? 'status-confirmed' : 'status-ready'}">
+              ${booked ? '✓ Direct Booking Active' : '● Node Connected'}
+            </span>
+          </div>
+          <p class="provider-desc" style="font-size: 0.9rem; color: #334155; line-height: 1.4; margin-bottom: 12px;">${escapeHtml(agent.description || "Federated specialist agent mounted to the active traveler swarm.")}</p>
+          <div class="tool-tags-container" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;">
+            ${(agent.tools || []).map(t => `<span class="badge" style="background: rgba(14,165,233,0.08); color: #0284c7; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-family: monospace;">⚡ ${escapeHtml(t)}</span>`).join("")}
+          </div>
+          <div class="card-actions-bar" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 12px;">
+            <button class="btn-card-action" onclick="TripStewardApp.bookDynamicSpecialist('${escapeHtml(agent.id)}')">
+              <span>${booked ? '✓ Service Booked Directly' : `Book Direct with ${escapeHtml(agent.name.split(" ")[0])}`}</span>
+            </button>
+            <div class="status-pill ${booked ? 'status-confirmed' : 'status-ready'}">
+              ${booked ? `Ref: #${escapeHtml(booked.ref_id)}` : 'Zero Intermediary Markup'}
+            </div>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  static bookDynamicSpecialist(agentId) {
+    const agent = TripStewardApp.vault.registeredAgents.find(a => a.id === agentId);
+    if (!agent) return;
+
+    let existing = TripStewardApp.vault.extraBookings.find(b => b.agent_id === agentId);
+    if (existing) {
+      alert(`Booking already active for ${agent.name} (Ref: ${existing.ref_id}).`);
+      return;
+    }
+
+    let defaultPrice = 50.00;
+    let title = `${agent.name} Specialist Reservation`;
+    if (agentId === "tablebespoke") { defaultPrice = 210.00; title = "TableBespoke Atelier Crenn Tasting Table"; }
+    else if (agentId === "alpinetrail") { defaultPrice = 85.00; title = "AlpineTrail Wilderness Permit & Guide Pass"; }
+    else if (agentId === "luggagefly") { defaultPrice = 70.00; title = "LuggageFly Airport Curbside Courier (2 Bags)"; }
+    else if (agentId === "travelshield") { defaultPrice = 19.00; title = "TravelShield Flight Delay Parametric Policy"; }
+
+    const booking = {
+      agent_id: agentId,
+      ref_id: `EXT-${Math.floor(1000 + Math.random() * 9000)}`,
+      title: title,
+      total_cost_usd: defaultPrice,
+      savings_usd: Math.round(defaultPrice * 0.25),
+      status: "CONFIRMED_DIRECT"
+    };
+
+    TripStewardApp.vault.extraBookings.push(booking);
+    TripStewardApp.appendSimulatedMessage("bot", `✅ **Direct Booking Confirmed:** Secured **${escapeHtml(title)}** directly with **${escapeHtml(agent.name)}** for **$${defaultPrice.toFixed(2)} USD** (Direct booking benefit: zero OTA markup).`);
+    TripStewardApp.renderBookings();
+    TripStewardApp.renderDynamicCards();
   }
 
   static renderDiscoverResults() {
@@ -739,10 +895,12 @@ export class TripStewardApp {
 
   static quickHoldHotel() {
     const t = TripStewardApp.vault.activeJourney;
-    const room = t.room_options[0];
+    const selectedTier = TripStewardApp.vault.selectedRoomTier;
+    const selectedRate = TripStewardApp.vault.selectedRoomRate;
+    const room = t.room_options.find(r => r.tier === selectedTier) || t.room_options[0];
     TripStewardApp.vault.reserveHotelRoom({
-      room_tier: room.tier,
-      nightly_rate_usd: room.rate,
+      room_tier: selectedTier || room.tier,
+      nightly_rate_usd: selectedRate || room.rate,
       nights: 2,
       guest_names: t.traveler.name,
       amenities_included: ["Artisan Breakfast", "High-Speed Wi-Fi", "Late Check-out 1 PM"]
@@ -772,6 +930,8 @@ export class TripStewardApp {
   }
 
   static selectRoomTier(tier, rate) {
+    TripStewardApp.vault.selectedRoomTier = tier;
+    TripStewardApp.vault.selectedRoomRate = rate;
     const cards = document.querySelectorAll(".room-option-card");
     cards.forEach(c => {
       if (c.getAttribute("data-tier") === tier) {
@@ -782,6 +942,10 @@ export class TripStewardApp {
     });
     const priceAmount = document.querySelector(".price-amount");
     if (priceAmount) priceAmount.textContent = `$${rate}`;
+    const hotelBtn = document.querySelector("#book-hotel-manual-btn");
+    if (hotelBtn && !TripStewardApp.vault.hotelReservation) {
+      hotelBtn.textContent = `Hold Room Directly ($${rate}/nt)`;
+    }
   }
 
   static appendSimulatedMessage(role, text) {
@@ -891,8 +1055,15 @@ export class TripStewardApp {
     const hotelCost = hotel ? (hotel.nightly_rate_usd * hotel.nights) : 378;
     const transferCost = transfer ? transfer.fare_usd : 68;
     const expCost = exp ? exp.total_price_usd : 158;
-    const totalCost = hotelCost + transferCost + expCost;
-    const otaCost = (hotel || transfer || exp) ? Math.round(totalCost * 1.2666) : 765;
+
+    let extraCost = 0;
+    const extraItems = Array.isArray(TripStewardApp.vault.extraBookings) ? TripStewardApp.vault.extraBookings : [];
+    for (const eb of extraItems) {
+      extraCost += Number(eb.total_cost_usd || eb.price_usd || 0);
+    }
+
+    const totalCost = hotelCost + transferCost + expCost + extraCost;
+    const otaCost = (hotel || transfer || exp || extraItems.length > 0) ? Math.round(totalCost * 1.2666) : 765;
 
     const rHotel = document.querySelector("#receipt-hotel");
     const rTransfer = document.querySelector("#receipt-transfer");
@@ -903,6 +1074,21 @@ export class TripStewardApp {
     if (rHotel) rHotel.textContent = `$${hotelCost.toFixed(2)}`;
     if (rTransfer) rTransfer.textContent = `$${transferCost.toFixed(2)}`;
     if (rExp) rExp.textContent = `$${expCost.toFixed(2)}`;
+
+    const rExtraContainer = document.querySelector("#receipt-extra-items");
+    if (rExtraContainer) {
+      if (extraItems.length > 0) {
+        rExtraContainer.innerHTML = extraItems.map(eb => `
+          <div class="receipt-row" style="margin-top: 6px;">
+            <span class="receipt-name">✦ ${escapeHtml(eb.title || "Specialist Reservation")}</span>
+            <span class="receipt-price">$${Number(eb.total_cost_usd || 0).toFixed(2)}</span>
+          </div>
+        `).join("");
+      } else {
+        rExtraContainer.innerHTML = "";
+      }
+    }
+
     if (rTotal) rTotal.textContent = `$${totalCost.toFixed(2)}`;
     if (rOta) rOta.textContent = `$${otaCost.toFixed(2)}`;
 
@@ -911,7 +1097,7 @@ export class TripStewardApp {
       savingsBox.textContent = `$${(otaCost - totalCost).toFixed(2)} USD`;
     }
 
-    const count = (hotel ? 1 : 0) + (transfer ? 1 : 0) + (exp ? 1 : 0);
+    const count = (hotel ? 1 : 0) + (transfer ? 1 : 0) + (exp ? 1 : 0) + extraItems.length;
     const countBadge = document.querySelector("#bookings-count-badge");
     if (countBadge) {
       countBadge.textContent = count > 0 ? `${count} Direct Bookings Confirmed` : "3 Direct Providers Linked";
@@ -942,9 +1128,9 @@ export class TripStewardApp {
     if (container && d) {
       container.innerHTML = `
         <div class="itinerary-card">
-          <h4>${d.trip_title}</h4>
-          <div>Direct Total: $${d.total_cost_usd} USD</div>
-          <div>Direct Savings: $${d.direct_savings_usd} USD</div>
+          <h4>${escapeHtml(d.trip_title)}</h4>
+          <div>Direct Total: $${Number(d.total_cost_usd || 0).toFixed(2)} USD</div>
+          <div>Direct Savings: $${Number(d.direct_savings_usd || 0).toFixed(2)} USD</div>
         </div>
       `;
     }

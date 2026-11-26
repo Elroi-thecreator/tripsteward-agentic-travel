@@ -1,0 +1,29 @@
+{
+  "specification": "https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json",
+  "name": "TravelShield Protection",
+  "version": "1.0.0",
+  "description": "TravelShield: Autonomous delay and flight interruption parametric insurance on the Open Agentic Web",
+  "networks": [
+    {
+      "name": "travelshield_underwriter",
+      "hocon": "./travelshield_underwriter.network.json",
+      "front_man": "insurance_underwriter"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
+    "agentTools": [
+      "quote_travel_policy",
+      "file_instant_claim"
+    ]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}

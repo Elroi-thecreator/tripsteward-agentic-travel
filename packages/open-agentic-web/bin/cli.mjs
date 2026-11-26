@@ -8,14 +8,14 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { toA2AAgentCard } from "../src/actions.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createActionRegistry, toA2AAgentCard } from "../src/actions.js";
 import { validateFederation, validateManifest, validateNetwork, validateNode } from "../src/validator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.1.2";
+let VERSION = "1.1.3";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;
@@ -490,11 +490,10 @@ function runDev() {
   };
 
   const server = createServer((req, res) => {
-    // Enable CORS and iframe embedding for local agentic web testing
+    // Enable CORS and embedding for local agentic web testing
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "*");
-    res.setHeader("X-Frame-Options", "ALLOWALL");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
@@ -503,7 +502,15 @@ function runDev() {
     }
 
     const urlPath = req.url.split("?")[0];
-    let filePath = join(targetDir, urlPath === "/" ? "index.html" : urlPath);
+    const safeTargetDir = resolve(targetDir);
+    const candidatePath = urlPath === "/" ? "index.html" : (urlPath.startsWith("/") ? urlPath.slice(1) : urlPath);
+    let filePath = resolve(safeTargetDir, candidatePath);
+
+    if (!filePath.startsWith(safeTargetDir)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("403 Forbidden: Path traversal detected.");
+      return;
+    }
 
     if (urlPath === "/playground") {
       // Interactive browser test harness
@@ -584,7 +591,7 @@ function runDev() {
   });
 }
 
-function runA2A() {
+async function runA2A() {
   const nonFlagArgs = args.slice(1).filter(a => a !== "--out" && !a.startsWith("http"));
   const targetDir = resolve(nonFlagArgs[0] || ".");
   const outIndex = args.indexOf("--out");
@@ -597,7 +604,27 @@ function runA2A() {
   }
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-  const card = toA2AAgentCard(manifest);
+
+  // Hydrate action schemas and effects from site-actions if available
+  let registry = null;
+  const actionsRelPath = manifest.actions?.module || "./site-actions.js";
+  const actionsPath = join(targetDir, actionsRelPath);
+  if (existsSync(actionsPath)) {
+    try {
+      const actionsUrl = pathToFileURL(actionsPath).href;
+      const actionsModule = await import(actionsUrl);
+      registry = createActionRegistry();
+      if (typeof actionsModule.registerActions === "function") {
+        await actionsModule.registerActions(registry);
+      } else if (actionsModule.SiteActions && typeof actionsModule.SiteActions.registerActions === "function") {
+        await actionsModule.SiteActions.registerActions(registry);
+      }
+    } catch {
+      // Continue with manifest fallback
+    }
+  }
+
+  const card = toA2AAgentCard(manifest, { registry });
   const jsonStr = JSON.stringify(card, null, 2);
 
   if (outPath) {

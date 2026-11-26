@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Action Bridge - alpinetrail_guide</title>
+    <script type="importmap">
+    {
+      "imports": {
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.3",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.3/"
+      }
+    }
+    </script>
+    <script type="module">
+      import { createActionRegistry, setupActionBridge } from "open-agentic-web";
+      import { SiteActions } from "../site-actions.js";
+
+      const registry = createActionRegistry();
+      SiteActions.registerActions(registry);
+
+      setupActionBridge({
+        registry,
+        allowedOrigins: ["*"],
+        onConfirm: async ({ action, arguments: args, origin }) => {
+          return window.confirm(`[AlpineTrail Action] ${origin} is requesting '${action}'. Authorize?`);
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <h3>Action Bridge for alpinetrail_guide</h3>
+  </body>
+</html>

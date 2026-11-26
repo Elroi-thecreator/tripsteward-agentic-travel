@@ -1,0 +1,29 @@
+{
+  "specification": "https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json",
+  "name": "AlpineTrail Guided Expeditions",
+  "version": "1.0.0",
+  "description": "AlpineTrail: Backcountry ski passes, wilderness guides, and mountain equipment on the Open Agentic Web",
+  "networks": [
+    {
+      "name": "alpinetrail_guide",
+      "hocon": "./alpinetrail_guide.network.json",
+      "front_man": "alpine_guide"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
+    "agentTools": [
+      "check_trail_conditions",
+      "book_expedition_pass"
+    ]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}

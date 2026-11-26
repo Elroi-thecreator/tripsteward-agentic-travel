@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "courier_dispatcher",
+      "role": "Curbside-to-Hotel Baggage Courier",
+      "instructions": "You are the LuggageFly autonomous courier dispatcher. Check baggage transfer rates using website_track_luggage, and schedule direct curbside-to-hotel baggage delivery via website_schedule_baggage_transfer.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "request"
+          ]
+        }
+      }
+    }
+  ]
+}

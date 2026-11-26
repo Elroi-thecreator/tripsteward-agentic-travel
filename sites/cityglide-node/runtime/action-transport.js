@@ -203,6 +203,7 @@ export async function serveActionBridge() {
     const caller = event.origin;
     const allowed = [...registry.entries.values()].filter(e => e.availability !== "local-only" && (e.callerOrigins.includes(caller) || e.callerOrigins.includes("*")));
     const port = event.ports[0]; const seen = new Set(); let busy = false;
+    port.postMessage({ type: "connected", protocol, ok: true });
     port.onmessage = async ({ data }) => {
       const id = data?.id;
       if (!Number.isSafeInteger(id) && typeof id !== "string" && typeof id !== "number") return;
