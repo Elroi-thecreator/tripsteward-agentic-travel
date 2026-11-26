@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ActionSecurityError, ActionValidationError, createActionRegistry, defineAction, validateSchema } from "../src/actions.js";
+import { setupActionBridge } from "../src/bridge.js";
 
 describe("Open Agentic Web - Site Actions & Validation", () => {
   it("validates data correctly with validateSchema", () => {
@@ -55,6 +56,7 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
 
     assert.strictEqual(action.name, "website_search_rooms");
     assert.strictEqual(action.effect, "read");
+    assert.strictEqual(action.availability, "bridge");
 
     // Success call
     const res = await action.execute({ nights: 3 });
@@ -88,6 +90,7 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
     const catalog = registry.catalog();
     assert.strictEqual(catalog.length, 1);
     assert.strictEqual(catalog[0].name, "website_book_ticket");
+    assert.strictEqual(catalog[0].availability, "bridge");
 
     const execResult = await registry.execute("website_book_ticket", { count: 4 });
     assert.strictEqual(execResult.booked, 4);
@@ -286,5 +289,43 @@ describe("Open Agentic Web - Site Actions & Validation", () => {
     assert.strictEqual(card.skills[0].id, "website_search_rooms");
     assert.strictEqual(card.capabilities.actions, true);
     assert.strictEqual(card.capabilities.pushNotifications, false);
+  });
+
+  it("announces readiness to windowObj.opener in setupActionBridge", async () => {
+    const registry = createActionRegistry();
+    registry.register(
+      defineAction({
+        name: "website_reserve_dining_table",
+        description: "Reserve dining table",
+        effect: "irreversible",
+        execute: async () => ({ reserved: true })
+      })
+    );
+
+    const posted = [];
+    const mockOpener = {
+      postMessage: (msg, targetOrigin) => {
+        posted.push({ msg, targetOrigin });
+      }
+    };
+
+    const mockWindow = {
+      opener: mockOpener,
+      parent: null,
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    };
+
+    const bridge = setupActionBridge({
+      registry,
+      allowedOrigins: ["*"],
+      windowObj: mockWindow
+    });
+
+    assert.ok(posted.length >= 1);
+    assert.strictEqual(posted[0].msg.type, "ready");
+    assert.strictEqual(posted[0].msg.protocol, "nsdeploy-actions-v1");
+
+    bridge.dispose();
   });
 });

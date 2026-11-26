@@ -360,6 +360,7 @@ class SiteServer {
       "/agent-manifest.json",
       "/links.json",
       "/agent-mcp.json",
+      "/.well-known/agent.json",
     ]);
     let manifest = null;
     try {

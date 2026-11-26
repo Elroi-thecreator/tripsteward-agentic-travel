@@ -80,18 +80,18 @@ export class AssistantMount {
     }
   }
 
-  static async reviewAction(action) {
-    const conf = AssistantMount.DIALOGS[action.name];
-    if (!conf) {
-      return AssistantMount.defaultReview
-        ? AssistantMount.defaultReview(action)
-        : true;
-    }
+  static async reviewAction(items) {
+    const first = Array.isArray(items) ? items[0] : items;
+    const conf = AssistantMount.DIALOGS[first?.action || first?.name];
+    if (!conf) return AssistantMount.defaultReview ? AssistantMount.defaultReview(items) : true;
     return window.confirm(`${conf.title}\n\n${conf.sentence}\n\nClick OK to '${conf.confirm}' or Cancel to '${conf.decline}'.`);
   }
 
   static async reviewConsent(peer) {
-    return window.confirm(`Authorize TripSteward Concierge to query independent provider node '${peer.origin}' on your behalf?`);
+    const label = peer?.peerLabel || peer?.peerOrigin || peer?.origin || "external provider";
+    return window.confirm(`Authorize TripSteward Concierge to query independent provider node '${label}' on your behalf?`)
+      ? "allow"
+      : "decline";
   }
 }
 

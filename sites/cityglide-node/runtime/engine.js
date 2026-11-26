@@ -133,6 +133,7 @@ export class Engine {
       if (typeof this.onConsent !== "function") return "allow";
       const decision = await this.onConsent(info);
       if (decision === "always") { this.consent.set(info.peerOrigin, "always"); return "allow"; }
+      if (decision === false || decision === "decline") return "decline";
       return decision || "allow";
     };
     const pending = this.consentTail.then(decide, decide);
@@ -196,6 +197,30 @@ export class Engine {
     const config = parseHocon(text);
     const publishedLinks = await this._loadPublishedLinks(base, entry.name || entry.hocon);
     config.links = { ...(config.links || {}), ...publishedLinks };
+    // Local development auto-rebinding for direct tool URLs if any agent declares hardcoded URLs on localhost
+    try {
+      const baseObj = new URL(base);
+      if (baseObj.hostname === "localhost" || baseObj.hostname === "127.0.0.1") {
+        for (const tool of config.tools || []) {
+          if (Array.isArray(tool.tools)) {
+            tool.tools = tool.tools.map(t => {
+              if (typeof t === "string" && t.includes("pnrs.is-a.dev")) {
+                if (baseObj.port === "8080") {
+                  if (t.includes("/rides/")) return `http://${baseObj.hostname}:8081/cityglide_transfer`;
+                  if (t.includes("/experiences/")) return `http://${baseObj.hostname}:8082/metropass_experiences`;
+                  if (t.includes("/dining/")) return `http://${baseObj.hostname}:8083/tablebespoke_concierge`;
+                } else if (baseObj.port === "8880") {
+                  if (t.includes("/rides/")) return `http://${baseObj.hostname}:8881/cityglide_transfer`;
+                  if (t.includes("/experiences/")) return `http://${baseObj.hostname}:8882/metropass_experiences`;
+                  if (t.includes("/dining/")) return `http://${baseObj.hostname}:8883/tablebespoke_concierge`;
+                }
+              }
+              return t;
+            });
+          }
+        }
+      }
+    } catch {}
     const network = new AgentNetwork(config, entry.name || entry.hocon);
     // Validation gate: a network with structural errors must never run. (Warnings
     // are non-fatal and surfaced in the trace/UI.) This applies to the top network

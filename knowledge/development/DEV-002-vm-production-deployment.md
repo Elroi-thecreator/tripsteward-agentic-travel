@@ -25,7 +25,8 @@ TripSteward / CuraPilot is deployed on the production VM without disturbing any 
      - `server_name pnrs.is-a.dev`: Serves FastAPI Holy Bible at root `/`, and proxies `/tripsteward/`, `/rides/`, and `/experiences/` to the local federated nodes.
      - `server_name elroi.js.org`: Custom JS.ORG domain dedicated to this app. Automatically redirects root `/` (301) to `/tripsteward/`, and serves all federated agent nodes (`/tripsteward/`, `/rides/`, `/experiences/`).
      - Port 80 HTTP server block cleanly redirects (301) all traffic for both `pnrs.is-a.dev` and `elroi.js.org` to `https://$host$request_uri`.
-   - Enforces `add_header Access-Control-Allow-Origin * always;` for worldwide agentic web compliance.
+   - Enforces `proxy_hide_header Access-Control-Allow-Origin;` before `add_header Access-Control-Allow-Origin * always;` across all proxied locations to guarantee modern browsers receive exactly one CORS header without duplicates.
+   - Static server runners (`scripts/serve_site.mjs`) include `/.well-known/agent.json` in `publicPaths()` alongside `agent-manifest.json` and `links.json` for A2A compatibility.
 3. **JS.ORG Subdomain Registry & CNAME Verification**:
    - Root-level `CNAME` file containing `elroi.js.org` tracked in version control for domain ownership verification.
    - Registered via Pull Request on `js-org/js.org` (PR #13046) mapping `"elroi": "pnrs.is-a.dev"`.

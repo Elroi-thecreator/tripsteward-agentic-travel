@@ -69,6 +69,7 @@ export function setupActionBridge({
   }
 
   let isConnected = false;
+  let interval = null;
 
   const isOriginAllowed = (origin) => {
     if (effectiveAllowedOrigins.includes("*")) return true;
@@ -125,6 +126,10 @@ export function setupActionBridge({
       if (ports && ports[0]) {
         const port = ports[0];
         isConnected = true;
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
 
         port.onmessage = async ({ data: portData }) => {
           if (!portData) return;
@@ -202,17 +207,39 @@ export function setupActionBridge({
 
   windowObj.addEventListener("message", handleMessage);
 
-  // Announce readiness to parent window
-  if (windowObj.parent && windowObj.parent !== windowObj) {
-    try {
-      windowObj.parent.postMessage({ type: "ready", protocol }, "*");
-    } catch {
-      // Ignored if parent is cross-origin
+  // Announce readiness to opener or parent window repeatedly until connected
+  const peer = windowObj.opener || (windowObj.parent !== windowObj ? windowObj.parent : null);
+  if (peer) {
+    const announceReady = () => {
+      if (!isConnected) {
+        try {
+          peer.postMessage({ type: "ready", protocol }, "*");
+        } catch {
+          // Ignored if peer is cross-origin
+        }
+      } else if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    interval = setInterval(announceReady, 250);
+    announceReady();
+    if (typeof windowObj.addEventListener === "function") {
+      windowObj.addEventListener("pagehide", () => {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      }, { once: true });
     }
   }
 
   return {
     dispose() {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
       windowObj.removeEventListener("message", handleMessage);
     },
     isConnected() {

@@ -181,7 +181,7 @@ export function defineAction(definition) {
     throw new Error("Action definition must be a valid configuration object.");
   }
 
-  const { name, description, effect = "read", inputSchema = {}, execute, undo = null, confirmsInWindow = false } = definition;
+  const { name, description, effect = "read", availability = "bridge", inputSchema = {}, execute, undo = null, confirmsInWindow = false } = definition;
 
   if (typeof name !== "string" || !name.trim()) {
     throw new Error("Action must declare a non-empty string 'name'.");
@@ -216,6 +216,7 @@ export function defineAction(definition) {
     name,
     description,
     effect,
+    availability: definition.availability || availability || "bridge",
     inputSchema: normalizedInputSchema,
     confirmsInWindow,
     rawExecute: execute,
@@ -304,6 +305,7 @@ export function createActionRegistry({ onActionExecuted = null, onActionError = 
         name: a.name,
         description: a.description,
         effect: a.effect,
+        availability: a.availability || "bridge",
         inputSchema: a.inputSchema,
         confirmsInWindow: a.confirmsInWindow
       }));
