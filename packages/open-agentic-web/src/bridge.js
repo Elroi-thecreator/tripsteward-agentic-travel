@@ -284,8 +284,41 @@ export function createActionBridgeClient({
 
       const usePopup = mode === "popup" || requirePopup;
       if (usePopup && typeof windowObj.open === "function") {
-        popupWindow = windowObj.open(bridgeUrl, `oaw_bridge_${Date.now()}`, "width=600,height=700");
-      } else {
+        try {
+          popupWindow = windowObj.open(bridgeUrl, `oaw_bridge_${Date.now()}`, "width=600,height=700");
+        } catch {}
+
+        // Fallback dialog if browser blocked the asynchronous popup window
+        if (!popupWindow || popupWindow.closed) {
+          if (windowObj.document && typeof windowObj.document.createElement === "function") {
+            const promptBox = windowObj.document.createElement("dialog");
+            promptBox.className = "oaw-popup-prompt";
+            promptBox.style.cssText = "padding:20px; border-radius:12px; border:1px solid #cbd5e1; box-shadow:0 10px 25px rgba(0,0,0,0.15); max-width:440px; font-family:system-ui,sans-serif;";
+            promptBox.innerHTML = `
+              <h4 style="margin:0 0 8px 0; color:#0f172a;">Action Authorization</h4>
+              <p style="margin:0 0 16px 0; font-size:14px; color:#475569;">Executing this operation on <strong>${brand}</strong> requires an interactive confirmation window.</p>
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button id="oaw-popup-dismiss" style="padding:6px 14px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; cursor:pointer;">Dismiss</button>
+                <button id="oaw-popup-open" style="padding:6px 14px; background:#0284c7; color:#fff; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Open Window</button>
+              </div>
+            `;
+            windowObj.document.body.appendChild(promptBox);
+            try { promptBox.showModal(); } catch { promptBox.setAttribute("open", "true"); }
+            promptBox.querySelector("#oaw-popup-open")?.addEventListener("click", () => {
+              popupWindow = windowObj.open(bridgeUrl, `oaw_bridge_${Date.now()}`, "width=600,height=700");
+              promptBox.close();
+              promptBox.remove();
+            });
+            promptBox.querySelector("#oaw-popup-dismiss")?.addEventListener("click", () => {
+              promptBox.close();
+              promptBox.remove();
+              cleanup();
+              reject(new Error(`Action authorization dismissed on ${brand}`));
+            });
+          }
+        }
+      }
+      if (!popupWindow) {
         iframe = windowObj.document.createElement("iframe");
         iframe.style.display = "none";
         iframe.src = bridgeUrl;

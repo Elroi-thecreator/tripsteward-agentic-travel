@@ -125,38 +125,26 @@ The network file defines the declarative Neuro SAN agent graph. It specifies the
 {
   "tools": [
     {
-      "type": "action",
-      "name": "website_check_table_availability",
-      "description": "Inspect open reservation slots for top local restaurants by cuisine and party size."
-    },
-    {
-      "type": "action",
-      "name": "website_reserve_dining_table",
-      "description": "Hold and reserve a dining table at direct provider rates with zero aggregator markups."
-    }
-  ],
-  "agents": [
-    {
       "name": "dining_sommelier",
       "role": "Executive Dining Concierge & Sommelier",
       "instructions": "You are the TableBespoke dining concierge. When a traveler requests restaurant recommendations, check availability using 'website_check_table_availability'. Once the traveler confirms, execute 'website_reserve_dining_table' to secure their table directly without middleman markups.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "cuisine_preference": { "type": "string" },
-          "party_size": { "type": "integer" },
-          "reservation_time": { "type": "string" }
-        },
-        "required": ["party_size"]
-      },
-      "tools": [
-        "website_check_table_availability",
-        "website_reserve_dining_table"
-      ]
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cuisine_preference": { "type": "string" },
+            "party_size": { "type": "integer" },
+            "reservation_time": { "type": "string" }
+          },
+          "required": ["party_size"]
+        }
+      }
     }
   ]
 }
 ```
+
+> **Note on nsdeploy Compatibility**: All declarative agent networks must declare the front agent and specialist agents directly inside the top-level `"tools"` array (rather than a separate `"agents"` array). Action tools implemented in `site-actions.js` are dynamically mounted to the front agent at runtime.
 
 ---
 
@@ -165,7 +153,7 @@ The network file defines the declarative Neuro SAN agent graph. It specifies the
 Tools must execute grounded actions against your service. Every tool method must provide:
 * `name`: Matches tool declared in manifest.
 * `description`: Explains what the tool does.
-* `effect`: `"read"` for safe queries, or `"irreversible"` for bookings.
+* `effect`: `"read"` for safe queries, or `"irreversible"` for state-modifying bookings (nsdeploy standard).
 * `inputSchema`: Strict JSON Schema defining parameters.
 * `execute(args)`: Async handler returning structured JSON.
 

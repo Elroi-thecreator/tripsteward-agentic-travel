@@ -63,6 +63,26 @@ function generateQRCodeSVG(code, size = 72) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" style="border-radius: 6px; background: #ffffff; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"><rect width="${size}" height="${size}" fill="#ffffff"/>${rects}</svg>`;
 }
 
+function broadcastProviderEvent(eventData) {
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const ch = new BroadcastChannel("oaw_provider_events");
+      ch.postMessage(eventData);
+      ch.close();
+    }
+  } catch {}
+  try {
+    if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "OAW_PROVIDER_EVENT", payload: eventData }, "*");
+    }
+  } catch {}
+  try {
+    if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "OAW_PROVIDER_EVENT", payload: eventData }, "*");
+    }
+  } catch {}
+}
+
 export class MetroPassApp {
   static vault = {
     catalog: [
@@ -196,11 +216,7 @@ export class MetroPassApp {
         if (typeof localStorage !== "undefined") {
           localStorage.setItem("oaw_metropass_bookings", JSON.stringify(this.bookings));
         }
-        if (typeof BroadcastChannel !== "undefined") {
-          const ch = new BroadcastChannel("oaw_provider_events");
-          ch.postMessage({ type: "metropass_pass_booked", booking });
-          ch.close();
-        }
+        broadcastProviderEvent({ type: "metropass_pass_booked", booking });
       } catch (e) {
         console.warn("Storage/Broadcast error:", e);
       }

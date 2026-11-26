@@ -657,6 +657,33 @@ export class TripStewardApp {
           }
         };
       }
+      if (typeof window !== "undefined") {
+        window.addEventListener("message", (e) => {
+          const data = e.data?.payload || e.data;
+          if (data?.type === "cityglide_transfer_scheduled" && data.reservation) {
+            const r = data.reservation;
+            TripStewardApp.vault.airportTransfer = {
+              id: r.transfer_id,
+              status: "CONFIRMED_DISPATCHED",
+              vehicle_class: r.vehicle_class,
+              driver: r.driver,
+              pickup_time: r.pickup_time,
+              fare_usd: r.fare_usd
+            };
+            TripStewardApp.renderBookings();
+          } else if (data?.type === "metropass_pass_booked" && data.booking) {
+            const b = data.booking;
+            TripStewardApp.vault.cityExperience = {
+              id: b.pass_code,
+              status: "CONFIRMED_ISSUED",
+              experience_name: b.title,
+              tickets_count: b.tickets,
+              total_price_usd: b.total_price_usd
+            };
+            TripStewardApp.renderBookings();
+          }
+        });
+      }
     } catch (e) {}
 
     const demoSimBtn = document.querySelector("#demo-simulate-btn");
@@ -818,22 +845,22 @@ export class TripStewardApp {
       defaultPrice = 210.00;
       title = "TableBespoke Atelier Crenn Tasting Table";
       actionName = "reserve_dining_table";
-      actionPayload = { restaurant_name: "Atelier Crenn", party_size: 2, seating_date: "2026-11-28", time_slot: "7:30 PM", dietary_notes: "None" };
+      actionPayload = { restaurant_name: "Atelier Crenn", party_size: 2, reservation_time: "7:30 PM", dietary_notes: "None" };
     } else if (agentId === "alpinetrail") {
       defaultPrice = 85.00;
       title = "AlpineTrail Wilderness Permit & Guide Pass";
       actionName = "book_expedition_pass";
-      actionPayload = { trail_id: "muir-woods-coastal", party_size: 2, expedition_date: "2026-11-29" };
+      actionPayload = { destination: "Mount Tamalpais Wilderness Trail", participants: 2, date: "2026-11-29" };
     } else if (agentId === "luggagefly") {
       defaultPrice = 70.00;
       title = "LuggageFly Airport Curbside Courier (2 Bags)";
       actionName = "schedule_baggage_transfer";
-      actionPayload = { bags_count: 2, flight_number: "UA 482", hotel_address: "HarborView Hotel, 450 Waterfront Blvd", delivery_priority: "express" };
+      actionPayload = { passenger_name: "Dr. Rachel Chen", hotel_address: "HarborView Hotel, 450 Waterfront Blvd", flight_number: "UA 482", bags_count: 2 };
     } else if (agentId === "travelshield") {
       defaultPrice = 19.00;
       title = "TravelShield Flight Delay Parametric Policy";
-      actionName = "quote_travel_policy";
-      actionPayload = { flight_number: "UA 482", coverage_type: "delay_parametric", trip_duration_days: 3 };
+      actionName = "file_instant_claim";
+      actionPayload = { traveler_name: "Dr. Rachel Chen", flight_number: "UA 482", payout_destination: "Direct ACH / Instant Card" };
     }
 
     let bookingRef = `EXT-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -841,15 +868,24 @@ export class TripStewardApp {
     // Invoke peer node's action bridge when running in a live browser
     if (typeof window !== "undefined" && agent.url) {
       try {
-        const bridgeUrl = `${agent.url.replace(/\/[^/]+$/, "")}/bridge/action-bridge.html`;
-        if (typeof openAgenticWeb !== "undefined" && typeof openAgenticWeb.createActionBridgeClient === "function") {
-          const client = openAgenticWeb.createActionBridgeClient({ bridgeUrl, brand: agent.name });
-          const res = await client.execute(actionName, actionPayload, { timeoutMs: 3000 }).catch(() => null);
+        let oaw = window.openAgenticWeb;
+        if (!oaw && typeof importShim === "function") {
+          oaw = await importShim("open-agentic-web").catch(() => null);
+        } else if (!oaw) {
+          oaw = await import("open-agentic-web").catch(() => null);
+        }
+        if (oaw && typeof oaw.createActionBridgeClient === "function") {
+          const bridgeUrl = `${agent.url.replace(/\/[^/]+$/, "")}/bridge/action-bridge.html`;
+          const client = oaw.createActionBridgeClient({ bridgeUrl, brand: agent.name });
+          const res = await client.execute(actionName, actionPayload, { timeoutMs: 3500 }).catch(() => null);
           if (res && res.ok) {
-            bookingRef = res.booking_id || res.pass_id || res.confirmation_id || bookingRef;
-            if (res.total_usd) defaultPrice = res.total_usd;
+            bookingRef = res.reservation_id || res.pass_id || res.tracking_id || res.policy_id || res.booking_id || bookingRef;
+            if (typeof res.total === "number") defaultPrice = res.total;
+            else if (typeof res.rate_usd === "number") defaultPrice = res.rate_usd;
+            else if (typeof res.premium_paid_usd === "number") defaultPrice = res.premium_paid_usd;
+            else if (typeof res.total_cost_usd === "number") defaultPrice = res.total_cost_usd;
           }
-          client.dispose();
+          if (typeof client.dispose === "function") client.dispose();
         }
       } catch (err) {
         console.warn("Peer bridge invocation fallback:", err);

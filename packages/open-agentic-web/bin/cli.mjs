@@ -685,22 +685,18 @@ async function runA2A() {
     }
   }
   if (!effectiveUrl) {
-    const dirBase = basename(targetDir);
-    const domainMap = {
-      "tripsteward-hub": "https://pnrs.is-a.dev/tripsteward",
-      "cityglide-node": "https://pnrs.is-a.dev/rides",
-      "metropass-node": "https://pnrs.is-a.dev/experiences",
-      "tablebespoke-node": "https://pnrs.is-a.dev/dining",
-      "alpinetrail-node": "https://pnrs.is-a.dev/alpine",
-      "luggagefly-node": "https://pnrs.is-a.dev/luggage",
-      "travelshield-node": "https://pnrs.is-a.dev/insurance"
-    };
-    if (domainMap[dirBase]) {
-      effectiveUrl = domainMap[dirBase];
+    const pkgPath = join(targetDir, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+        if (pkg.homepage && !pkg.homepage.includes("localhost")) {
+          effectiveUrl = pkg.homepage;
+        }
+      } catch {}
     }
   }
   if (!effectiveUrl) {
-    effectiveUrl = "http://localhost";
+    effectiveUrl = "http://localhost:8080";
   }
 
   const card = toA2AAgentCard(manifest, { registry, url: effectiveUrl, baseUrl: effectiveUrl });

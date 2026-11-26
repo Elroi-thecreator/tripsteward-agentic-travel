@@ -10,6 +10,26 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function broadcastProviderEvent(eventData) {
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const ch = new BroadcastChannel("oaw_provider_events");
+      ch.postMessage(eventData);
+      ch.close();
+    }
+  } catch {}
+  try {
+    if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "OAW_PROVIDER_EVENT", payload: eventData }, "*");
+    }
+  } catch {}
+  try {
+    if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "OAW_PROVIDER_EVENT", payload: eventData }, "*");
+    }
+  } catch {}
+}
+
 export class CityGlideApp {
   static vault = {
     fleet: [
@@ -179,11 +199,7 @@ export class CityGlideApp {
         if (typeof localStorage !== "undefined") {
           localStorage.setItem("oaw_cityglide_reservations", JSON.stringify(this.reservations));
         }
-        if (typeof BroadcastChannel !== "undefined") {
-          const ch = new BroadcastChannel("oaw_provider_events");
-          ch.postMessage({ type: "cityglide_transfer_scheduled", reservation: res });
-          ch.close();
-        }
+        broadcastProviderEvent({ type: "cityglide_transfer_scheduled", reservation: res });
       } catch (e) {
         console.warn("Storage/Broadcast error:", e);
       }

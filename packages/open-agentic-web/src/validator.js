@@ -138,6 +138,9 @@ export function validateNetwork(network, { frontMan = null, report = new Conform
   report.assert(hasTools, "Network defines 'tools' array");
 
   // Agents or front agent
+  if (Array.isArray(network.agents)) {
+    report.addWarning("Top-level 'agents' array detected in network. For full nsdeploy runtime compatibility, define agents directly as objects inside the 'tools' array.");
+  }
   const agents = network.agents || network.tools?.filter(t => t.type === "agent" || t.instructions);
   report.assert(Array.isArray(agents) && agents.length > 0, "Network defines at least one agent with instructions");
 
@@ -329,6 +332,9 @@ export async function validateNode(nodeDir) {
                 ["read", "write", "irreversible", "undoable"].includes(act.effect),
                 `Tool '${declaredTool}' declares valid effect ('${act.effect || 'missing'}')`
               );
+              if (act.effect === "undoable") {
+                report.addWarning(`Tool '${declaredTool}' uses effect 'undoable'. Cognizant nsdeploy runtime only natively supports 'read' and 'irreversible'.`);
+              }
             }
           }
         }
