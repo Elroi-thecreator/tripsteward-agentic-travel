@@ -15,6 +15,9 @@
     "default_model": "alibaba/qwen3.8-flash"
   },
   "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "bridge": "./bridge/action-bridge.html",
     "agentTools": [
       "check_table_availability",
       "reserve_dining_table",

@@ -32,7 +32,7 @@
         "type": "object",
         "properties": {}
       },
-      "effect": "read"
+      "effect": "irreversible"
     },
     {
       "id": "get_available_catalog",
@@ -56,13 +56,13 @@
     "networks": [
       "metropass_experiences"
     ],
-    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+    "actionBridgeUrl": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
   },
   "protocols": [
     {
       "name": "nsdeploy-actions-v1",
       "version": "1.0.0",
-      "endpoint": "http://localhost/bridge/action-bridge.html"
+      "endpoint": "https://pnrs.is-a.dev/experiences/bridge/action-bridge.html"
     }
   ],
   "authentication": {

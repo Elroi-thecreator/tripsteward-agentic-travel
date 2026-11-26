@@ -231,12 +231,10 @@ export class TripStewardVault {
     try {
       const engine = window.__nsweb?.engine;
       if (engine && agent.url) {
-        if (typeof engine.resolveLink === "function") {
-          engine.resolveLink(agent.url).catch(() => {});
-        }
-        const frontAgent = engine.top?.network?.config?.tools?.[0];
-        if (frontAgent && Array.isArray(frontAgent.tools) && !frontAgent.tools.includes(agent.url)) {
-          frontAgent.tools.push(agent.url);
+        engine.runtimeAllowedPeers?.add(new URL(agent.url).origin);
+        const spec = engine.top?.network?.getAgentSpec?.(engine.top.network.findFrontMan());
+        if (spec && Array.isArray(spec.tools) && !spec.tools.includes(agent.url)) {
+          spec.tools.push(agent.url);
         }
       }
     } catch (e) {
@@ -291,6 +289,27 @@ export class TripStewardVault {
       status: "DISPATCHED_ON_NETWORK",
       ...transfer
     };
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("oaw_provider_events");
+        ch.postMessage({
+          type: "cityglide_transfer_scheduled",
+          reservation: {
+            transfer_id: this.airportTransfer.id,
+            passenger_name: "Dr. Rachel Chen",
+            vehicle_class: transfer.vehicle_class || "Executive EV Sedan",
+            driver: "Elena Rostova (Tesla Model S)",
+            pickup_location: transfer.pickup_location || "SFO Terminal 2 - Baggage Carousel 4",
+            dropoff_location: transfer.dropoff_location || "HarborView Hotel, 450 Waterfront Blvd",
+            pickup_time: transfer.pickup_time || "5:00 PM (UA 482 flight buffer)",
+            fare_usd: transfer.fare_usd || 68.00,
+            status: "CONFIRMED_DISPATCHED",
+            created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        });
+        ch.close();
+      }
+    } catch (e) {}
     TripStewardApp.renderBookings();
     return {
       ok: true,
@@ -307,6 +326,28 @@ export class TripStewardVault {
       status: "CONFIRMED_VOUCHER_ISSUED",
       ...exp
     };
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("oaw_provider_events");
+        ch.postMessage({
+          type: "metropass_pass_booked",
+          booking: {
+            pass_code: this.cityExperience.id,
+            experience_id: "EXP-SF-01",
+            title: exp.experience_name || "Golden Gate Sunset Catamaran Cruise",
+            attendee_name: "Dr. Rachel Chen",
+            date: "Saturday, Nov 28",
+            scheduled_slot: exp.scheduled_slot || "6:00 PM - 8:00 PM",
+            tickets: exp.tickets_count || 2,
+            total_price_usd: exp.total_price_usd || 158.00,
+            status: "CONFIRMED_ISSUED",
+            qr_code: "QR-" + this.cityExperience.id,
+            issued_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        });
+        ch.close();
+      }
+    } catch (e) {}
     TripStewardApp.renderBookings();
     return {
       ok: true,
