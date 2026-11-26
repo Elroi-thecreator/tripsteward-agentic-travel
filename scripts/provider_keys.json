@@ -1,0 +1,35 @@
+{
+  "harborview-key-1": {
+    "key_ops": ["sign"],
+    "ext": true,
+    "kty": "EC",
+    "x": "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
+    "y": "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
+    "crv": "P-256",
+    "d": "yWkkIr_gRYVC1J-viVpw_REKMSIIs3MCdeBlJ9KavxM",
+    "kid": "harborview-key-1",
+    "provider": "HarborView Hotel & Residences"
+  },
+  "cityglide-key-1": {
+    "key_ops": ["sign"],
+    "ext": true,
+    "kty": "EC",
+    "x": "aZ-sa51tZjXPoBgtL1LE9Vt1svlB2Tz8rAGKT5dNnCM",
+    "y": "DMOmBT1jdDj63PrH_xr4HlPgvbVyu0GFiP4Nnc4J32E",
+    "crv": "P-256",
+    "d": "_20f9EJc8xrH8Q_K-gRgL7Y_KSGga9IXvjSCPTsfd1I",
+    "kid": "cityglide-key-1",
+    "provider": "CityGlide Autonomous Fleet"
+  },
+  "metropass-key-1": {
+    "key_ops": ["sign"],
+    "ext": true,
+    "kty": "EC",
+    "x": "c3B7ZdjhMYgY_ZfDQuyFsBiApz5cKpCCx0_cEbjyI5s",
+    "y": "heuLo3ShXxZf7Mce9dIKx4bUMzR-9xh3NYgEHkzsneg",
+    "crv": "P-256",
+    "d": "vzhCAS5KdRqZcJ8yY1YAXIwKjNE0oQnySB4S1YbeQls",
+    "kid": "metropass-key-1",
+    "provider": "MetroPass Experiences & Culture"
+  }
+}

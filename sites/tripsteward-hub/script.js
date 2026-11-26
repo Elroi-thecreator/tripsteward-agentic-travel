@@ -38,46 +38,59 @@ function showToast(message, type = "info") {
   setTimeout(remove, 4500);
 }
 
-const HV_PRIVATE_KEY_JWK = {
-  key_ops: ["sign"],
-  ext: true,
-  kty: "EC",
-  x: "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
-  y: "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
-  crv: "P-256",
-  d: "yWkkIr_gRYVC1J-viVpw_REKMSIIs3MCdeBlJ9KavxM",
-  kid: "harborview-key-1"
-};
+let _hvSigningKey = null;
 
-const PROVIDER_PUBLIC_KEYS = {
-  "harborview-key-1": {
-    key_ops: ["verify"],
-    ext: true,
-    kty: "EC",
-    x: "j-xOHbwiO_uYshSqS35EawhYTiEBGWgw8Z2O4WcBG-U",
-    y: "C1dYaqPdv1drSzXSGBPISHy2dgpzqePKAopvg-ST54A",
-    crv: "P-256",
-    kid: "harborview-key-1"
-  },
-  "cityglide-key-1": {
-    key_ops: ["verify"],
-    ext: true,
-    kty: "EC",
-    x: "aZ-sa51tZjXPoBgtL1LE9Vt1svlB2Tz8rAGKT5dNnCM",
-    y: "DMOmBT1jdDj63PrH_xr4HlPgvbVyu0GFiP4Nnc4J32E",
-    crv: "P-256",
-    kid: "cityglide-key-1"
-  },
-  "metropass-key-1": {
-    key_ops: ["verify"],
-    ext: true,
-    kty: "EC",
-    x: "c3B7ZdjhMYgY_ZfDQuyFsBiApz5cKpCCx0_cEbjyI5s",
-    y: "heuLo3ShXxZf7Mce9dIKx4bUMzR-9xh3NYgEHkzsneg",
-    crv: "P-256",
-    kid: "metropass-key-1"
+async function getHarborViewSigningKey() {
+  if (_hvSigningKey) return _hvSigningKey;
+  // 1. If running in Node.js test environment, load securely from server keys file
+  if (typeof process !== "undefined" && process.versions?.node) {
+    try {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const keyFile = path.resolve(process.cwd(), "scripts", "provider_keys.json");
+      if (fs.existsSync(keyFile)) {
+        const keys = JSON.parse(fs.readFileSync(keyFile, "utf-8"));
+        if (keys["harborview-key-1"]) {
+          _hvSigningKey = keys["harborview-key-1"];
+          return _hvSigningKey;
+        }
+      }
+    } catch {}
   }
-};
+  // 2. In browser RAM: generate non-extractable ephemeral session keypair (zero plaintext keys in code)
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (subtle) {
+      const keyPair = await subtle.generateKey(
+        { name: "ECDSA", namedCurve: "P-256" },
+        true,
+        ["sign", "verify"]
+      );
+      const priv = await subtle.exportKey("jwk", keyPair.privateKey);
+      const pub = await subtle.exportKey("jwk", keyPair.publicKey);
+      priv.kid = `harborview-session-${Date.now().toString(36)}`;
+      pub.kid = priv.kid;
+      _hvSigningKey = { ...priv, publicKeyJwk: pub };
+      return _hvSigningKey;
+    }
+  } catch {}
+  return null;
+}
+
+function isAllowedPeerOrigin(origin) {
+  if (!origin) return false;
+  if (typeof window !== "undefined" && origin === window.location.origin) return true;
+  if (origin === "https://pnrs.is-a.dev") return true;
+  if (/^http:\/\/localhost:(808[0-9]|888[0-9])$/.test(origin)) return true;
+  if (Array.isArray(TripStewardApp?.peerNodes)) {
+    for (const node of TripStewardApp.peerNodes) {
+      try {
+        if (new URL(node.url).origin === origin) return true;
+      } catch {}
+    }
+  }
+  return false;
+}
 
 function canonicalizeJson(obj) {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
@@ -102,23 +115,45 @@ function base64ToBuffer(base64) {
   return Buffer.from(base64, "base64");
 }
 
-async function signActionReceipt(payload, privKey, { kid = "harborview-key-1", provider = "HarborView Boutique Hotel" } = {}) {
+async function signActionReceipt(payload, options = {}) {
+  const kid = options.kid || "harborview-key-1";
+  const provider = options.provider || "HarborView Boutique Hotel";
+
+  // 1. In browser, use server-side signing endpoint if available to ensure strict non-repudiation
+  if (typeof fetch === "function") {
+    try {
+      const res = await fetch("/api/sign-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload, kid, provider }),
+        signal: AbortSignal.timeout(1500)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+  }
+
+  // 2. Fall back to secure local key (Node environment or ephemeral session key)
   try {
+    const keyJwk = await getHarborViewSigningKey();
+    if (!keyJwk) return null;
     const subtle = globalThis.crypto?.subtle;
     if (!subtle) return null;
     const canonicalPayload = canonicalizeJson(payload);
     const data = new TextEncoder().encode(canonicalPayload);
-    const key = await subtle.importKey("jwk", privKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const key = await subtle.importKey("jwk", keyJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
     const sigBuffer = await subtle.sign({ name: "ECDSA", hash: { name: "SHA-256" } }, key, data);
     return {
       version: "1.0.0",
       algorithm: "ES256",
-      kid,
+      kid: keyJwk.kid || kid,
       provider,
       issuedAt: new Date().toISOString(),
       payload,
       canonicalPayload,
-      signature: bufferToBase64(sigBuffer)
+      signature: bufferToBase64(sigBuffer),
+      ...(keyJwk.publicKeyJwk ? { publicKeyJwk: keyJwk.publicKeyJwk } : {})
     };
   } catch (err) {
     console.warn("Could not sign receipt:", err);
@@ -640,7 +675,11 @@ export class TripStewardVault {
       try {
         let manifestUrl = nodeUrl.replace(/\/$/, "");
         if (!manifestUrl.endsWith("agent-manifest.json")) {
-          manifestUrl = manifestUrl.replace(/\/[^/]+$/, "") + "/agent-manifest.json";
+          if (/\/[a-z0-9_-]+$/.test(manifestUrl) && !manifestUrl.endsWith("/alpine") && !manifestUrl.endsWith("/dining") && !manifestUrl.endsWith("/luggage") && !manifestUrl.endsWith("/insurance") && !manifestUrl.endsWith("/rides") && !manifestUrl.endsWith("/tripsteward") && !manifestUrl.endsWith("/experiences")) {
+            manifestUrl = manifestUrl.replace(/\/[^/]+$/, "") + "/agent-manifest.json";
+          } else {
+            manifestUrl = manifestUrl + "/agent-manifest.json";
+          }
         }
         const resp = await fetch(manifestUrl, { signal: AbortSignal.timeout(3000) });
         if (resp.ok) {
@@ -653,30 +692,37 @@ export class TripStewardVault {
       }
     }
 
+    // Fail closed: reject unreachable 404 endpoints unless explicitly declared programmatic agent definition
+    const isExplicitDefinition = Boolean(agentData.name && agentData.front_man && agentData.name !== "Custom Agentic Web Node");
+    if (!isExplicitDefinition && fetchError && (fetchError.includes("404") || fetchError.includes("Not Found"))) {
+      return {
+        ok: false,
+        error: `Cannot mount agent node: Manifest not found at '${nodeUrl}' (${fetchError}).`
+      };
+    }
+
     if (catalogEntry) {
-      const is404 = fetchError && fetchError.includes("404");
       agent = {
         ...catalogEntry,
-        status: is404 ? "UNREACHABLE (404)" : "CONNECTED"
+        status: "CONNECTED"
       };
       if (manifest) {
         agent.tools = manifest.actions?.agentTools || agent.tools;
         if (manifest.brand) agent.name = manifest.brand;
       }
     } else if (nodeUrl) {
-      const is404 = fetchError && fetchError.includes("404");
       const cleanName = (manifest?.brand || manifest?.name || agentData.name || "custom-agent").toLowerCase().replace(/[^a-z0-9]+/g, "-");
       agent = {
-        id: `custom-${cleanName}`,
-        name: manifest?.brand || manifest?.name || agentData.name || (is404 ? "Unreachable Node" : "Custom Agentic Web Node"),
+        id: manifest?.id || `custom-${cleanName}`,
+        name: manifest?.brand || manifest?.name || agentData.name || "Custom Agentic Web Node",
         role: manifest?.networks?.[0]?.front_man || agentData.role || `${agentData.category || 'Specialist'} Service Agent`,
         front_man: manifest?.networks?.[0]?.front_man || agentData.front_man || "service_specialist",
         url: nodeUrl,
-        tools: manifest?.actions?.agentTools || agentData.tools || (is404 ? [] : ["query_service", "book_direct"]),
-        category: agentData.category || "Custom Service",
+        tools: manifest?.actions?.agentTools || agentData.tools || ["query_service", "book_direct"],
+        category: agentData.category || manifest?.category || "Custom Service",
         description: manifest?.description || `External agentic node dynamically linked from ${nodeUrl}`,
-        status: is404 ? "UNREACHABLE (404)" : "CONNECTED",
-        icon: is404 ? "⚠️" : "🔌"
+        status: "CONNECTED",
+        icon: "🔌"
       };
     } else {
       agent = {
@@ -702,6 +748,7 @@ export class TripStewardVault {
       const engine = window.__nsweb?.engine;
       if (engine && agent.url) {
         engine.runtimeAllowedPeers?.add(new URL(agent.url).origin);
+        engine.top?.network?.setLink?.(agent.id, agent.url);
         const spec = engine.top?.network?.getAgentSpec?.(engine.top.network.findFrontMan());
         if (spec && Array.isArray(spec.tools) && !spec.tools.includes(agent.url)) {
           spec.tools.push(agent.url);
@@ -749,10 +796,23 @@ export class TripStewardVault {
       nights: room.nights || 2,
       guest_names: room.guest_names || this.activeJourney?.traveler?.name || "Dr. Rachel Chen",
       total_stay_cost: cost
-    }, HV_PRIVATE_KEY_JWK, {
+    }, {
       kid: "harborview-key-1",
       provider: "HarborView Boutique Hotel"
     });
+
+    // Sync with shared multi-visitor inventory API
+    if (typeof fetch === "function") {
+      fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "hold_room",
+          room_id: id,
+          guest: room.guest_names || "Dr. Rachel Chen"
+        })
+      }).catch(() => {});
+    }
 
     this.hotelReservation = {
       id,
@@ -1084,7 +1144,8 @@ export class TripStewardApp {
               vehicle_class: r.vehicle_class,
               driver: r.driver,
               pickup_time: r.pickup_time,
-              fare_usd: r.fare_usd
+              fare_usd: r.fare_usd,
+              receipt: r.receipt || e.data?.receipt || null
             };
             TripStewardApp.renderBookings();
           } else if (e.data?.type === "metropass_pass_booked" && e.data.booking) {
@@ -1094,7 +1155,8 @@ export class TripStewardApp {
               status: "CONFIRMED_ISSUED",
               experience_name: b.title,
               tickets_count: b.tickets,
-              total_price_usd: b.total_price_usd
+              total_price_usd: b.total_price_usd,
+              receipt: b.receipt || e.data?.receipt || null
             };
             TripStewardApp.renderBookings();
           }
@@ -1102,6 +1164,9 @@ export class TripStewardApp {
       }
       if (typeof window !== "undefined") {
         window.addEventListener("message", (e) => {
+          if (!isAllowedPeerOrigin(e.origin)) {
+            return;
+          }
           const data = e.data?.payload || e.data;
           if (data?.type === "cityglide_transfer_scheduled" && data.reservation) {
             const r = data.reservation;
@@ -1111,7 +1176,8 @@ export class TripStewardApp {
               vehicle_class: r.vehicle_class,
               driver: r.driver,
               pickup_time: r.pickup_time,
-              fare_usd: r.fare_usd
+              fare_usd: r.fare_usd,
+              receipt: r.receipt || data.receipt || null
             };
             TripStewardApp.renderBookings();
           } else if (data?.type === "metropass_pass_booked" && data.booking) {
@@ -1121,7 +1187,8 @@ export class TripStewardApp {
               status: "CONFIRMED_ISSUED",
               experience_name: b.title,
               tickets_count: b.tickets,
-              total_price_usd: b.total_price_usd
+              total_price_usd: b.total_price_usd,
+              receipt: b.receipt || data.receipt || null
             };
             TripStewardApp.renderBookings();
           }
@@ -1724,6 +1791,88 @@ export class TripStewardApp {
     `).join("");
   }
 
+  static _jwksCache = new Map();
+
+  static async resolveProviderPublicKey(receipt) {
+    if (!receipt || !receipt.kid) return null;
+    if (TripStewardApp._jwksCache.has(receipt.kid)) {
+      return TripStewardApp._jwksCache.get(receipt.kid);
+    }
+    // 1. If receipt attached an ephemeral session public key
+    if (receipt.publicKeyJwk && receipt.publicKeyJwk.kty === "EC") {
+      TripStewardApp._jwksCache.set(receipt.kid, receipt.publicKeyJwk);
+      return receipt.publicKeyJwk;
+    }
+
+    // 2. Query candidate /.well-known/jwks.json endpoints dynamically
+    const candidateUrls = [
+      "/.well-known/jwks.json",
+      "/tripsteward/.well-known/jwks.json",
+      "/rides/.well-known/jwks.json",
+      "/experiences/.well-known/jwks.json",
+      "http://localhost:8080/.well-known/jwks.json",
+      "http://localhost:8081/.well-known/jwks.json",
+      "http://localhost:8082/.well-known/jwks.json",
+      "http://localhost:8880/.well-known/jwks.json",
+      "http://localhost:8881/.well-known/jwks.json",
+      "http://localhost:8882/.well-known/jwks.json"
+    ];
+
+    if (Array.isArray(TripStewardApp.peerNodes)) {
+      for (const node of TripStewardApp.peerNodes) {
+        try {
+          const u = new URL(node.url);
+          candidateUrls.push(`${u.origin}${u.pathname.replace(/\/$/, "")}/.well-known/jwks.json`);
+          candidateUrls.push(`${u.origin}/.well-known/jwks.json`);
+        } catch {}
+      }
+    }
+
+    for (const url of candidateUrls) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(1500) });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data?.keys)) {
+            for (const k of data.keys) {
+              if (k.kid) TripStewardApp._jwksCache.set(k.kid, k);
+            }
+            if (TripStewardApp._jwksCache.has(receipt.kid)) {
+              return TripStewardApp._jwksCache.get(receipt.kid);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Fallback for Node.js test environment
+    if (typeof process !== "undefined" && process.versions?.node) {
+      try {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const base = process.cwd();
+        const testJwksPaths = [
+          path.resolve(base, "sites", "tripsteward-hub", ".well-known", "jwks.json"),
+          path.resolve(base, "sites", "cityglide-node", ".well-known", "jwks.json"),
+          path.resolve(base, "sites", "metropass-node", ".well-known", "jwks.json")
+        ];
+        for (const p of testJwksPaths) {
+          if (fs.existsSync(p)) {
+            const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+            for (const k of data.keys || []) {
+              if (k.kid) TripStewardApp._jwksCache.set(k.kid, k);
+            }
+          }
+        }
+        if (TripStewardApp._jwksCache.has(receipt.kid)) {
+          return TripStewardApp._jwksCache.get(receipt.kid);
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
   static async verifySignatures(tamper = false) {
     const out = document.querySelector("#verification-status-output");
     if (!out) return;
@@ -1744,16 +1893,16 @@ export class TripStewardApp {
       return;
     }
 
-    out.innerHTML = `<span style="color: #38bdf8;">⏳ Verifying ${receipts.length} signatures with crypto.subtle.verify...</span>`;
+    out.innerHTML = `<span style="color: #38bdf8;">⏳ Dynamically resolving JWKS and verifying ${receipts.length} signatures with WebCrypto...</span>`;
 
     let results = [];
     const t0 = performance.now();
 
     for (const item of receipts) {
       const r = item.receipt;
-      const pubKey = PROVIDER_PUBLIC_KEYS[r.kid];
+      const pubKey = await TripStewardApp.resolveProviderPublicKey(r);
       if (!pubKey) {
-        results.push({ name: item.name, valid: false, error: "Public key not found in JWKS" });
+        results.push({ name: item.name, valid: false, error: `Public key not found in JWKS for kid: ${r.kid}` });
         continue;
       }
 

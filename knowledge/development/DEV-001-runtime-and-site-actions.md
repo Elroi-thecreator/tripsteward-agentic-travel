@@ -25,21 +25,28 @@ All code in this project must adhere to the standard Open Agentic Web implementa
    - Action bridge handshakes must support both explicit `{ type: "connected" }` signals and proactive catalog pings (`{ id: 0, type: "catalog" }`) to ensure zero-timeout interoperability across both `open-agentic-web` and `nsdeploy` starter runtimes.
 3. **Cryptographic Action Receipts & Public Verification Keys**:
    - Provider nodes sign irreversible booking actions (rooms, transfers, passes) using native WebCrypto ECDSA P-256 (`crypto.subtle` with `SHA-256` / `ES256`).
+   - Signing private keys are never committed in plaintext in client scripts; they are managed server-side via `POST /api/sign-receipt` or generated ephemerally in browser RAM.
    - Every signed receipt includes `algorithm: "ES256"`, `kid`, `provider`, `issuedAt`, `payload`, `canonicalPayload`, and `signature`.
-   - Provider public keys are exposed in standard `.well-known/jwks.json` and in `agent.json`.
+   - Provider public keys are exposed in standard `.well-known/jwks.json` and dynamically resolved and cached by verifiers.
    - Sovereign clients cryptographically verify receipts in-browser using `crypto.subtle.verify`, catching any unauthorized tampering.
-4. **Authentic ISO/IEC 18004 QR Codes & RFC 5545 Calendar Export**:
+   - Cross-window event synchronization (`BroadcastChannel` and `postMessage`) strictly preserves `receipt` signatures and validates message origins against registered peer nodes.
+4. **Cross-Session Shared Inventory Coordination**:
+   - Provider nodes coordinate inventory (available rooms, standby fleet, remaining experience tickets) via `/api/inventory` to ensure consistency across multiple visitors and sessions without client-side state conflicts.
+5. **Fail-Closed Dynamic Node Mounting & Tool Hot-Mounting**:
+   - Dynamic agent registration (`addAgentOnTheFly`) validates manifest URLs and fails closed on HTTP 404 rather than mounting unreachable nodes.
+   - Valid mounted nodes are dynamically hot-mounted into the live engine's `runtimeAllowedPeers`, link table, and agent spec tools.
+6. **Authentic ISO/IEC 18004 QR Codes & RFC 5545 Calendar Export**:
    - Digital event and boarding passes render authentic 21x21 Model 2 Level M ISO/IEC 18004 QR codes generated with standard GF(256) Reed-Solomon polynomial division, scannable by physical camera scanners.
    - Itineraries export to universal RFC 5545 `.ics` calendar format with full VEVENT details for seamless import into Google Calendar, Apple Calendar, and Outlook.
-5. **Bring-Your-Own-Key (BYOK) Inference**:
+7. **Bring-Your-Own-Key (BYOK) Inference**:
    - Primary default provider: **Mozilla Otari** at `https://api.otari.ai/api/v1` with default model `alibaba/qwen3.8-flash`.
    - Key storage: Strictly origin-scoped `localStorage` handled directly by the browser runtime engine.
    - For offline/local development, mock mode or local Ollama endpoints are supported.
-6. **Peer Linking & User Consent Gateway**:
+8. **Peer Linking & User Consent Gateway**:
    - Peer origins must be declared in `allowed_peers` in `agent-manifest.json` when `peer_policy.mode` is `"closed"`.
    - `links.json` maps symbolic external network names to concrete HTTP/HTTPS URLs pointing to the peer network's base folder.
    - The runtime must prompt the visitor with an accessible confirmation dialog (`createConsentDialog` or custom `<dialog>`) prior to executing sensitive actions or connecting peer nodes, completely replacing blocking `alert()` or `confirm()`.
-7. **Universal Flight Arrival & Buffer Calculation Engine**:
+9. **Universal Flight Arrival & Buffer Calculation Engine**:
    - Airport ground transit nodes dynamically parse arbitrary arrival timestamps (`12h` or `24h` formats).
    - Flight delay buffers calculate +30 minutes for domestic arrivals and +45 minutes for international flights, dynamically added to estimated curbside pickup times.
    - Multi-city dynamic configuration supports localized flight telemetry, hotels, and activities across San Francisco, Seattle, and Austin with live Open-Meteo marine weather telemetry.

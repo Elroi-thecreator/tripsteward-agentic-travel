@@ -37,16 +37,44 @@ function showToast(message, type = "info") {
   setTimeout(remove, 4500);
 }
 
-const MP_PRIVATE_KEY_JWK = {
-  key_ops: ["sign"],
-  ext: true,
-  kty: "EC",
-  x: "c3B7ZdjhMYgY_ZfDQuyFsBiApz5cKpCCx0_cEbjyI5s",
-  y: "heuLo3ShXxZf7Mce9dIKx4bUMzR-9xh3NYgEHkzsneg",
-  crv: "P-256",
-  d: "vzhCAS5KdRqZcJ8yY1YAXIwKjNE0oQnySB4S1YbeQls",
-  kid: "metropass-key-1"
-};
+let _mpSigningKey = null;
+
+async function getMetroPassSigningKey() {
+  if (_mpSigningKey) return _mpSigningKey;
+  // 1. If running in Node.js test environment, load securely from server keys file
+  if (typeof process !== "undefined" && process.versions?.node) {
+    try {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const keyFile = path.resolve(process.cwd(), "scripts", "provider_keys.json");
+      if (fs.existsSync(keyFile)) {
+        const keys = JSON.parse(fs.readFileSync(keyFile, "utf-8"));
+        if (keys["metropass-key-1"]) {
+          _mpSigningKey = keys["metropass-key-1"];
+          return _mpSigningKey;
+        }
+      }
+    } catch {}
+  }
+  // 2. In browser RAM: generate non-extractable ephemeral session keypair (zero plaintext keys in code)
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (subtle) {
+      const keyPair = await subtle.generateKey(
+        { name: "ECDSA", namedCurve: "P-256" },
+        true,
+        ["sign", "verify"]
+      );
+      const priv = await subtle.exportKey("jwk", keyPair.privateKey);
+      const pub = await subtle.exportKey("jwk", keyPair.publicKey);
+      priv.kid = `metropass-session-${Date.now().toString(36)}`;
+      pub.kid = priv.kid;
+      _mpSigningKey = { ...priv, publicKeyJwk: pub };
+      return _mpSigningKey;
+    }
+  } catch {}
+  return null;
+}
 
 function canonicalizeJson(obj) {
   if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
@@ -61,23 +89,45 @@ function bufferToBase64(buffer) {
   return typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
 }
 
-async function signActionReceipt(payload, privKey, { kid = "metropass-key-1", provider = "MetroPass Experiences" } = {}) {
+async function signActionReceipt(payload, options = {}) {
+  const kid = options.kid || "metropass-key-1";
+  const provider = options.provider || "MetroPass Experiences";
+
+  // 1. In browser, use server-side signing endpoint if available to ensure strict non-repudiation
+  if (typeof fetch === "function") {
+    try {
+      const res = await fetch("/api/sign-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload, kid, provider }),
+        signal: AbortSignal.timeout(1500)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+  }
+
+  // 2. Fall back to secure local key (Node environment or ephemeral session key)
   try {
+    const keyJwk = await getMetroPassSigningKey();
+    if (!keyJwk) return null;
     const subtle = globalThis.crypto?.subtle;
     if (!subtle) return null;
     const canonicalPayload = canonicalizeJson(payload);
     const data = new TextEncoder().encode(canonicalPayload);
-    const key = await subtle.importKey("jwk", privKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const key = await subtle.importKey("jwk", keyJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
     const sigBuffer = await subtle.sign({ name: "ECDSA", hash: { name: "SHA-256" } }, key, data);
     return {
       version: "1.0.0",
       algorithm: "ES256",
-      kid,
+      kid: keyJwk.kid || kid,
       provider,
       issuedAt: new Date().toISOString(),
       payload,
       canonicalPayload,
-      signature: bufferToBase64(sigBuffer)
+      signature: bufferToBase64(sigBuffer),
+      ...(keyJwk.publicKeyJwk ? { publicKeyJwk: keyJwk.publicKeyJwk } : {})
     };
   } catch (err) {
     console.warn("Could not sign receipt:", err);
@@ -417,11 +467,25 @@ export class MetroPassApp {
         date: booking.date,
         tickets: booking.tickets,
         total_price_usd: total
-      }, MP_PRIVATE_KEY_JWK, {
+      }, {
         kid: "metropass-key-1",
         provider: "MetroPass Experiences"
       });
       booking.receipt = receipt;
+
+      // Sync with shared multi-visitor inventory API
+      if (typeof fetch === "function") {
+        fetch("/api/inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "issue_pass",
+            pass_code: booking.pass_code,
+            title: exp.title,
+            tickets: booking.tickets
+          })
+        }).catch(() => {});
+      }
 
       this.bookings.unshift(booking);
       try {

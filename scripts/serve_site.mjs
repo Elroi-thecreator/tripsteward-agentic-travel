@@ -16,6 +16,64 @@ import { once } from "node:events";
 import http from "node:http";
 import path from "node:path";
 
+const SHARED_INVENTORY = {
+  rooms: {
+    total: 12,
+    held: 3,
+    available: 9,
+    activeHolds: []
+  },
+  fleet: {
+    total: 8,
+    dispatched: 2,
+    standby: 6,
+    activeRides: []
+  },
+  experiences: {
+    totalPasses: 50,
+    issuedPasses: 14,
+    remainingPasses: 36,
+    activeBookings: []
+  }
+};
+
+function canonicalizeJson(obj) {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalizeJson).join(",") + "]";
+  return "{" + Object.keys(obj).sort().map(k => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`).join(",") + "}";
+}
+
+function bufferToBase64(buffer) {
+  return Buffer.from(buffer).toString("base64");
+}
+
+let PROVIDER_KEYS = null;
+async function loadProviderKeys() {
+  if (PROVIDER_KEYS) return PROVIDER_KEYS;
+  try {
+    const keyFile = path.join(path.dirname(new URL(import.meta.url).pathname), "provider_keys.json");
+    PROVIDER_KEYS = JSON.parse(await readFile(keyFile, "utf8"));
+  } catch (e) {
+    PROVIDER_KEYS = {};
+  }
+  return PROVIDER_KEYS;
+}
+
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    request.on("data", chunk => { data += chunk; });
+    request.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
 /**
  * Serves one site folder for local checks.
  *
@@ -235,9 +293,130 @@ class SiteServer {
       this.send(request, response, urlPath, 400, {}, "Bad request");
       return;
     }
+    // Handle CORS preflight for all endpoints
+    if (request.method === "OPTIONS") {
+      this.send(request, response, urlPath, 204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+        "Access-Control-Max-Age": "86400"
+      }, "");
+      return;
+    }
+
+    // 1. Cross-Session Shared Inventory API
+    if (urlPath === "/api/inventory") {
+      const headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*"
+      };
+      if (request.method === "GET") {
+        this.send(request, response, urlPath, 200, headers, JSON.stringify(SHARED_INVENTORY));
+        return;
+      }
+      if (request.method === "POST") {
+        try {
+          const body = await readRequestBody(request);
+          if (body.action === "hold_room") {
+            SHARED_INVENTORY.rooms.held += 1;
+            SHARED_INVENTORY.rooms.available = Math.max(0, SHARED_INVENTORY.rooms.total - SHARED_INVENTORY.rooms.held);
+            SHARED_INVENTORY.rooms.activeHolds.push({
+              room_id: body.room_id || "HV-ROOM-204",
+              guest: body.guest || "Guest",
+              time: new Date().toISOString()
+            });
+          } else if (body.action === "dispatch_ride") {
+            SHARED_INVENTORY.fleet.dispatched += 1;
+            SHARED_INVENTORY.fleet.standby = Math.max(0, SHARED_INVENTORY.fleet.total - SHARED_INVENTORY.fleet.dispatched);
+            SHARED_INVENTORY.fleet.activeRides.push({
+              transfer_id: body.transfer_id,
+              vehicle_class: body.vehicle_class,
+              time: new Date().toISOString()
+            });
+          } else if (body.action === "issue_pass") {
+            const tickets = Number(body.tickets || 1);
+            SHARED_INVENTORY.experiences.issuedPasses += tickets;
+            SHARED_INVENTORY.experiences.remainingPasses = Math.max(0, SHARED_INVENTORY.experiences.totalPasses - SHARED_INVENTORY.experiences.issuedPasses);
+            SHARED_INVENTORY.experiences.activeBookings.push({
+              pass_code: body.pass_code,
+              experience: body.title,
+              tickets,
+              time: new Date().toISOString()
+            });
+          }
+          this.send(request, response, urlPath, 200, headers, JSON.stringify({ ok: true, inventory: SHARED_INVENTORY }));
+          return;
+        } catch (e) {
+          this.send(request, response, urlPath, 400, headers, JSON.stringify({ ok: false, error: e.message }));
+          return;
+        }
+      }
+      this.send(request, response, urlPath, 405, { Allow: "GET, POST, OPTIONS" }, "Method not allowed");
+      return;
+    }
+
+    // 2. Server-Side ECDSA Action Receipt Signing API
+    if (urlPath === "/api/sign-receipt") {
+      const headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*"
+      };
+      if (request.method === "POST") {
+        try {
+          const body = await readRequestBody(request);
+          const keys = await loadProviderKeys();
+          let kid = body.kid;
+          let provider = body.provider;
+          if (!kid) {
+            if (this.root.includes("cityglide")) { kid = "cityglide-key-1"; provider = "CityGlide Autonomous Fleet"; }
+            else if (this.root.includes("metropass")) { kid = "metropass-key-1"; provider = "MetroPass Experiences & Culture"; }
+            else { kid = "harborview-key-1"; provider = "HarborView Hotel & Residences"; }
+          }
+          const keyJwk = keys[kid];
+          if (!keyJwk) {
+            this.send(request, response, urlPath, 404, headers, JSON.stringify({ ok: false, error: `Key not found for kid: ${kid}` }));
+            return;
+          }
+          const subtle = globalThis.crypto?.subtle;
+          const canonicalPayload = canonicalizeJson(body.payload || {});
+          const enc = new TextEncoder();
+          const data = enc.encode(canonicalPayload);
+          const importedKey = await subtle.importKey(
+            "jwk",
+            keyJwk,
+            { name: "ECDSA", namedCurve: "P-256" },
+            false,
+            ["sign"]
+          );
+          const sigBuffer = await subtle.sign(
+            { name: "ECDSA", hash: { name: "SHA-256" } },
+            importedKey,
+            data
+          );
+          const receipt = {
+            version: "1.0.0",
+            algorithm: "ES256",
+            kid,
+            provider: provider || keyJwk.provider || "Open Agentic Web Node",
+            issuedAt: new Date().toISOString(),
+            payload: body.payload || {},
+            canonicalPayload,
+            signature: bufferToBase64(sigBuffer)
+          };
+          this.send(request, response, urlPath, 200, headers, JSON.stringify(receipt));
+          return;
+        } catch (e) {
+          this.send(request, response, urlPath, 500, headers, JSON.stringify({ ok: false, error: e.message }));
+          return;
+        }
+      }
+      this.send(request, response, urlPath, 405, { Allow: "POST, OPTIONS" }, "Method not allowed");
+      return;
+    }
+
     if (request.method !== "GET" && request.method !== "HEAD") {
       this.send(request, response, urlPath, 405, {
-        Allow: "GET, HEAD",
+        Allow: "GET, HEAD, OPTIONS",
       }, "Method not allowed");
       return;
     }
@@ -361,6 +540,7 @@ class SiteServer {
       "/links.json",
       "/agent-mcp.json",
       "/.well-known/agent.json",
+      "/.well-known/jwks.json",
     ]);
     let manifest = null;
     try {

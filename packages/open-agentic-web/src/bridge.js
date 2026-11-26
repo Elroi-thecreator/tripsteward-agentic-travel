@@ -317,8 +317,8 @@ export function createActionBridgeClient({
             });
           }
         }
-      }
-      if (!popupWindow) {
+      } else {
+        // Only spawn hidden iframe in iframe mode (never in popup mode)
         iframe = windowObj.document.createElement("iframe");
         iframe.style.display = "none";
         iframe.src = bridgeUrl;
