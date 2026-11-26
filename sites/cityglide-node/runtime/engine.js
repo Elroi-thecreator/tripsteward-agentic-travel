@@ -254,9 +254,11 @@ export class Engine {
               if (baseObj.port === "8080") {
                 if (target.includes("/rides/")) links[key] = `http://${baseObj.hostname}:8081/cityglide_transfer`;
                 if (target.includes("/experiences/")) links[key] = `http://${baseObj.hostname}:8082/metropass_experiences`;
+                if (target.includes("/dining/")) links[key] = `http://${baseObj.hostname}:8083/tablebespoke_concierge`;
               } else if (baseObj.port === "8880") {
                 if (target.includes("/rides/")) links[key] = `http://${baseObj.hostname}:8881/cityglide_transfer`;
                 if (target.includes("/experiences/")) links[key] = `http://${baseObj.hostname}:8882/metropass_experiences`;
+                if (target.includes("/dining/")) links[key] = `http://${baseObj.hostname}:8883/tablebespoke_concierge`;
               }
             }
           }

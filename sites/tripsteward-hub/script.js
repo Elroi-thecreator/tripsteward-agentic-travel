@@ -227,6 +227,22 @@ export class TripStewardVault {
       this.registeredAgents.push(agent);
     }
 
+    // Wire dynamically to live in-browser engine if present
+    try {
+      const engine = window.__nsweb?.engine;
+      if (engine && agent.url) {
+        if (typeof engine.resolveLink === "function") {
+          engine.resolveLink(agent.url).catch(() => {});
+        }
+        const frontAgent = engine.top?.network?.config?.tools?.[0];
+        if (frontAgent && Array.isArray(frontAgent.tools) && !frontAgent.tools.includes(agent.url)) {
+          frontAgent.tools.push(agent.url);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not wire agent to live engine:", e);
+    }
+
     if (typeof TripStewardApp !== "undefined" && typeof TripStewardApp.renderSwarm === "function") {
       TripStewardApp.renderSwarm();
       TripStewardApp.appendSimulatedMessage("bot", `🔌 **Orchestrator Link:** Successfully mounted new agent **${agent.name}** (${agent.url}) on the fly. Declared machine tools: \`${agent.tools.join("`, `")}\`.`);
@@ -506,6 +522,36 @@ export class TripStewardApp {
     }
 
     // Orchestration Actions
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("oaw_provider_events");
+        ch.onmessage = (e) => {
+          if (e.data?.type === "cityglide_transfer_scheduled" && e.data.reservation) {
+            const r = e.data.reservation;
+            TripStewardApp.vault.airportTransfer = {
+              id: r.transfer_id,
+              status: "CONFIRMED_DISPATCHED",
+              vehicle_class: r.vehicle_class,
+              driver: r.driver,
+              pickup_time: r.pickup_time,
+              fare_usd: r.fare_usd
+            };
+            TripStewardApp.renderBookings();
+          } else if (e.data?.type === "metropass_pass_booked" && e.data.booking) {
+            const b = e.data.booking;
+            TripStewardApp.vault.cityExperience = {
+              id: b.pass_code,
+              status: "CONFIRMED_ISSUED",
+              experience_name: b.title,
+              tickets_count: b.tickets,
+              total_price_usd: b.total_price_usd
+            };
+            TripStewardApp.renderBookings();
+          }
+        };
+      }
+    } catch (e) {}
+
     const demoSimBtn = document.querySelector("#demo-simulate-btn");
     if (demoSimBtn) {
       demoSimBtn.addEventListener("click", () => {
@@ -571,6 +617,8 @@ export class TripStewardApp {
         TripStewardApp.downloadItineraryText();
       });
     }
+
+    TripStewardApp.initTelemetry();
   }
 
   static renderSwarm() {
@@ -667,7 +715,7 @@ export class TripStewardApp {
       dropoff_location: "HarborView Hotel, 450 Waterfront Blvd",
       vehicle_class: "Executive EV Sedan (Tesla Model S)",
       pickup_time: "5:00 PM (Flight buffer +30m)",
-      fare_usd: 45.00
+      fare_usd: 68.00
     });
   }
 
@@ -677,7 +725,7 @@ export class TripStewardApp {
       experience_name: "Golden Gate Sunset Catamaran Cruise",
       scheduled_slot: "Saturday, 5:45 PM – 7:30 PM",
       tickets_count: t.traveler.party_size,
-      total_price_usd: 100.00,
+      total_price_usd: 158.00,
       special_notes: "Boarding at Pier 39, Marina Gate B"
     });
   }
@@ -767,7 +815,7 @@ export class TripStewardApp {
       } else {
         hotelTag.className = "status-pill status-ready";
         hotelTag.textContent = "Ready for Concierge Hold";
-        if (hotelBtn) hotelBtn.textContent = "Hold Room Directly ($185/nt)";
+        if (hotelBtn) hotelBtn.textContent = "Hold Room Directly ($189/nt)";
       }
     }
 
@@ -781,7 +829,7 @@ export class TripStewardApp {
       } else {
         transferTag.className = "status-pill status-ready";
         transferTag.textContent = "Flight Telemetry Synced";
-        if (transferBtn) transferBtn.textContent = "Dispatch Airport Chauffeur ($45)";
+        if (transferBtn) transferBtn.textContent = "Dispatch Airport Chauffeur ($68)";
       }
     }
 
@@ -795,15 +843,15 @@ export class TripStewardApp {
       } else {
         expTag.className = "status-pill status-ready";
         expTag.textContent = "Direct Partner Passes";
-        if (expBtn) expBtn.textContent = "Issue 2x Passes ($100.00)";
+        if (expBtn) expBtn.textContent = "Issue 2x Passes ($158.00)";
       }
     }
 
-    const hotelCost = hotel ? (hotel.nightly_rate_usd * hotel.nights) : 370;
-    const transferCost = transfer ? transfer.fare_usd : 45;
-    const expCost = exp ? exp.total_price_usd : 100;
+    const hotelCost = hotel ? (hotel.nightly_rate_usd * hotel.nights) : 378;
+    const transferCost = transfer ? transfer.fare_usd : 68;
+    const expCost = exp ? exp.total_price_usd : 158;
     const totalCost = hotelCost + transferCost + expCost;
-    const otaCost = Math.round(totalCost * 1.275);
+    const otaCost = (hotel || transfer || exp) ? Math.round(totalCost * 1.2666) : 765;
 
     const rHotel = document.querySelector("#receipt-hotel");
     const rTransfer = document.querySelector("#receipt-transfer");
@@ -816,6 +864,11 @@ export class TripStewardApp {
     if (rExp) rExp.textContent = `$${expCost.toFixed(2)}`;
     if (rTotal) rTotal.textContent = `$${totalCost.toFixed(2)}`;
     if (rOta) rOta.textContent = `$${otaCost.toFixed(2)}`;
+
+    const savingsBox = document.querySelector(".savings-highlight-box strong");
+    if (savingsBox) {
+      savingsBox.textContent = `$${(otaCost - totalCost).toFixed(2)} USD`;
+    }
 
     const count = (hotel ? 1 : 0) + (transfer ? 1 : 0) + (exp ? 1 : 0);
     const countBadge = document.querySelector("#bookings-count-badge");
@@ -906,6 +959,44 @@ Zero 3rd-Party Markups • 100% In-Browser Privacy
     a.download = `TripSteward_Travel_Pass_${(d.trip_code || "TS_PASS").replace(/[^a-zA-Z0-9]/g, "_")}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  static initTelemetry() {
+    const statsEl = document.querySelector("#telemetry-stats");
+    if (!statsEl) return;
+
+    let manifestsCount = 3;
+    let bridgesCount = 2;
+    let tokensEstimate = 0;
+
+    const updatePill = () => {
+      const estOtariCost = tokensEstimate > 0 ? (tokensEstimate * 0.0000004).toFixed(5) : "0.0006";
+      statsEl.textContent = `${manifestsCount} CORS manifests verified • ${bridgesCount} MessageChannel bridges • Host LLM bill: $0.00 • Visitor Otari inference: ~$${estOtariCost}`;
+    };
+
+    updatePill();
+
+    const hookTrace = () => {
+      const trace = window.__nsweb?.trace;
+      if (!trace) return false;
+
+      trace.addEventListener("event", (e) => {
+        const ev = e.detail;
+        if (!ev) return;
+        if (ev.kind === "fetch" || ev.phase === "remote_fetch") manifestsCount++;
+        if (ev.kind === "action_catalog" || ev.kind === "bridge") bridgesCount++;
+        if (ev.tokens || ev.usage?.total_tokens) tokensEstimate += (ev.tokens || ev.usage.total_tokens);
+        updatePill();
+      });
+      return true;
+    };
+
+    if (!hookTrace()) {
+      const interval = setInterval(() => {
+        if (hookTrace()) clearInterval(interval);
+      }, 500);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
   }
 }
 

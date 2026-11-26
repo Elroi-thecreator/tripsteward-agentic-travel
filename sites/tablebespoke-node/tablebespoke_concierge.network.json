@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "dining_sommelier",
+      "role": "Michelin & Chef Table Sommelier Concierge",
+      "instructions": "You are the TableBespoke autonomous dining concierge. Inspect available culinary reservations using website_check_table_availability or website_query_inventory, and once the traveler approves, secure the chef's table directly via website_reserve_dining_table or website_commit_reservation.",
+      "function": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "request": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "request"
+          ]
+        }
+      }
+    }
+  ]
+}

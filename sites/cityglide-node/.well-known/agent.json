@@ -1,0 +1,72 @@
+{
+  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "name": "CityGlide Autonomous Fleet & Airport Transfers",
+  "description": "",
+  "url": "https://pnrs.is-a.dev/rides/",
+  "version": "0.3.0",
+  "provider": {
+    "name": "CityGlide Autonomous Fleet & Airport Transfers",
+    "url": "https://pnrs.is-a.dev/rides/"
+  },
+  "identity": {
+    "brand": "CityGlide Autonomous Fleet & Airport Transfers",
+    "frontMan": "transfer_dispatcher",
+    "category": "open-agentic-web"
+  },
+  "skills": [
+    {
+      "id": "quote_transfer_service",
+      "name": "quote_transfer_service",
+      "description": "Execute quote_transfer_service on CityGlide Autonomous Fleet & Airport Transfers",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "schedule_airport_transfer",
+      "name": "schedule_airport_transfer",
+      "description": "Execute schedule_airport_transfer on CityGlide Autonomous Fleet & Airport Transfers",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "get_fleet_status",
+      "name": "get_fleet_status",
+      "description": "Execute get_fleet_status on CityGlide Autonomous Fleet & Airport Transfers",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "quote_transfer_service",
+      "schedule_airport_transfer",
+      "get_fleet_status"
+    ],
+    "networks": [
+      "cityglide_transfer"
+    ],
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "http://localhost/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

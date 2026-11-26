@@ -1,0 +1,72 @@
+{
+  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "name": "MetroPass Experiences & City Curations",
+  "description": "",
+  "url": "https://pnrs.is-a.dev/experiences/",
+  "version": "0.3.0",
+  "provider": {
+    "name": "MetroPass Experiences & City Curations",
+    "url": "https://pnrs.is-a.dev/experiences/"
+  },
+  "identity": {
+    "brand": "MetroPass Experiences & City Curations",
+    "frontMan": "experience_curator",
+    "category": "open-agentic-web"
+  },
+  "skills": [
+    {
+      "id": "search_experiences",
+      "name": "search_experiences",
+      "description": "Execute search_experiences on MetroPass Experiences & City Curations",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "book_experience_pass",
+      "name": "book_experience_pass",
+      "description": "Execute book_experience_pass on MetroPass Experiences & City Curations",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "get_available_catalog",
+      "name": "get_available_catalog",
+      "description": "Execute get_available_catalog on MetroPass Experiences & City Curations",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "search_experiences",
+      "book_experience_pass",
+      "get_available_catalog"
+    ],
+    "networks": [
+      "metropass_experiences"
+    ],
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "http://localhost/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

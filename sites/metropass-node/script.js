@@ -142,6 +142,18 @@ export class MetroPassApp {
       };
 
       this.bookings.unshift(booking);
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("oaw_metropass_bookings", JSON.stringify(this.bookings));
+        }
+        if (typeof BroadcastChannel !== "undefined") {
+          const ch = new BroadcastChannel("oaw_provider_events");
+          ch.postMessage({ type: "metropass_pass_booked", booking });
+          ch.close();
+        }
+      } catch (e) {
+        console.warn("Storage/Broadcast error:", e);
+      }
       MetroPassApp.renderBookings();
 
       return {
@@ -212,6 +224,34 @@ export class MetroPassApp {
   }
 
   static init() {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const stored = localStorage.getItem("oaw_metropass_bookings");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const b of parsed.reverse()) {
+              if (!MetroPassApp.vault.bookings.some(x => x.pass_code === b.pass_code)) {
+                MetroPassApp.vault.bookings.unshift(b);
+              }
+            }
+          }
+        }
+      }
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("oaw_provider_events");
+        ch.onmessage = (e) => {
+          if (e.data?.type === "metropass_pass_booked" && e.data.booking) {
+            const b = e.data.booking;
+            if (!MetroPassApp.vault.bookings.some(x => x.pass_code === b.pass_code)) {
+              MetroPassApp.vault.bookings.unshift(b);
+              MetroPassApp.renderBookings();
+            }
+          }
+        };
+      }
+    } catch (e) {}
+
     MetroPassApp.renderCatalog();
     MetroPassApp.renderBookings();
 

@@ -45,7 +45,7 @@ TripSteward operates as an in-browser **Federated Travel Orchestrator** that fed
    - Independent cultural activity authority.
    - Discovers verified local activities (`website_search_experiences`), reserves VIP admission, and issues scannable mobile QR passes (`website_book_experience_pass`) with 0% reseller fees.
 4. **Master Digital Travel Pass Synthesis:**
-   - Compiles all confirmed provider reservations into a single, cohesive master pass (`website_compile_master_itinerary`) with verified itemized savings (**$142.00 saved** on direct provider rates).
+   - Compiles all confirmed provider reservations into a single, cohesive master pass (`website_compile_master_itinerary`) with verified itemized savings (**$161.00 saved** on direct provider rates).
 5. **100% In-Browser Execution & BYOK Inference:**
    - Powered by **Mozilla Otari** (`alibaba/qwen3.8-flash`) or visitor-supplied keys.
    - **Website hosts pay $0 for inference**, and customer travel plans never touch any backend server.

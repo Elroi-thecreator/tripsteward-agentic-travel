@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Action Bridge - tablebespoke_concierge</title>
+    <!-- Browser Import Map: Resolves bare module specifiers on static hosts without a bundler -->
+    <script type="importmap">
+    {
+      "imports": {
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.1",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.1/"
+      }
+    }
+    </script>
+    <script type="module">
+      import { createActionRegistry, setupActionBridge } from "open-agentic-web";
+      import { SiteActions } from "../site-actions.js";
+
+      const registry = createActionRegistry();
+      SiteActions.registerActions(registry);
+
+      // Secure action bridge: allows cross-origin orchestrators while enforcing human confirmation for irreversible actions
+      setupActionBridge({
+        registry,
+        allowedOrigins: ["*"],
+        onConfirm: async ({ action, arguments: args, origin }) => {
+          return window.confirm("[Action Authorization] " + origin + " is requesting to execute '" + action + "'. Authorize this action?");
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <h3>Action Bridge for tablebespoke_concierge</h3>
+  </body>
+</html>

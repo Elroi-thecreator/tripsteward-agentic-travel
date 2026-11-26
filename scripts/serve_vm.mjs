@@ -10,7 +10,8 @@ const serveScript = join(__dirname, "serve_site.mjs");
 const sites = [
   { name: "TripSteward Concierge Hub", dir: join(rootDir, "sites", "tripsteward-hub"), port: 8880 },
   { name: "CityGlide Transfer Node", dir: join(rootDir, "sites", "cityglide-node"), port: 8881 },
-  { name: "MetroPass Experiences Node", dir: join(rootDir, "sites", "metropass-node"), port: 8882 }
+  { name: "MetroPass Experiences Node", dir: join(rootDir, "sites", "metropass-node"), port: 8882 },
+  { name: "TableBespoke Dining Node", dir: join(rootDir, "sites", "tablebespoke-node"), port: 8883 }
 ];
 
 const children = [];

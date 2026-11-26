@@ -136,6 +136,18 @@ export class CityGlideApp {
       };
 
       this.reservations.unshift(res);
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("oaw_cityglide_reservations", JSON.stringify(this.reservations));
+        }
+        if (typeof BroadcastChannel !== "undefined") {
+          const ch = new BroadcastChannel("oaw_provider_events");
+          ch.postMessage({ type: "cityglide_transfer_scheduled", reservation: res });
+          ch.close();
+        }
+      } catch (e) {
+        console.warn("Storage/Broadcast error:", e);
+      }
       CityGlideApp.renderReservations();
       return {
         success: true,
@@ -181,6 +193,34 @@ export class CityGlideApp {
   }
 
   static init() {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const stored = localStorage.getItem("oaw_cityglide_reservations");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            for (const r of parsed.reverse()) {
+              if (!CityGlideApp.vault.reservations.some(x => x.transfer_id === r.transfer_id)) {
+                CityGlideApp.vault.reservations.unshift(r);
+              }
+            }
+          }
+        }
+      }
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("oaw_provider_events");
+        ch.onmessage = (e) => {
+          if (e.data?.type === "cityglide_transfer_scheduled" && e.data.reservation) {
+            const r = e.data.reservation;
+            if (!CityGlideApp.vault.reservations.some(x => x.transfer_id === r.transfer_id)) {
+              CityGlideApp.vault.reservations.unshift(r);
+              CityGlideApp.renderReservations();
+            }
+          }
+        };
+      }
+    } catch (e) {}
+
     CityGlideApp.renderReservations();
 
     const quoteBtn = document.querySelector("#calc-quote-btn");

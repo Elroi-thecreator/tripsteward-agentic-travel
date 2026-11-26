@@ -160,7 +160,7 @@ export function websiteToolRefusal(ctx, action) {
     if (action.availability !== "bridge") return "a partner network gets only actions its bridge shares";
     return "";
   }
-  if (action.availability !== "local-only") return "not a local-only action";
+  if (action.availability !== "local-only" && action.availability !== "bridge") return "not a local-only action";
   if (action.effect === "irreversible" && typeof ctx.confirmWebsiteActions !== "function") {
     return "irreversible, and the page has no confirmation dialog";
   }

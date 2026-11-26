@@ -3,7 +3,8 @@
   "networks": {
     "tripsteward_concierge": {
       "cityglide": "https://pnrs.is-a.dev/rides/cityglide_transfer",
-      "metropass": "https://pnrs.is-a.dev/experiences/metropass_experiences"
+      "metropass": "https://pnrs.is-a.dev/experiences/metropass_experiences",
+      "tablebespoke": "https://pnrs.is-a.dev/dining/tablebespoke_concierge"
     }
   }
 }

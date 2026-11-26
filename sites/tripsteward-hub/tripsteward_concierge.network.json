@@ -3,6 +3,7 @@
     "name": "tripsteward_concierge",
     "description": "Federated Travel & Hospitality Orchestrator. Discovers agent nodes across the Open Agentic Web, coordinates room reservations, flight-buffered airport transfers, and activity passes on your behalf."
   },
+  "cruse": true,
   "llm_config": {
     "model": "alibaba/qwen3.8-flash",
     "temperature": 0.2

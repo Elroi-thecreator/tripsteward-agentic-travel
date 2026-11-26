@@ -1,0 +1,83 @@
+{
+  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "name": "TableBespoke Fine Dining & Chef's Tables",
+  "description": "TableBespoke: Direct fine dining and culinary experience bookings on the Open Agentic Web",
+  "url": "http://localhost",
+  "version": "0.3.0-v0.3.json",
+  "provider": {
+    "name": "TableBespoke Fine Dining & Chef's Tables",
+    "url": "http://localhost"
+  },
+  "identity": {
+    "brand": "TableBespoke Fine Dining & Chef's Tables",
+    "frontMan": "dining_sommelier",
+    "category": "Concierge"
+  },
+  "skills": [
+    {
+      "id": "check_table_availability",
+      "name": "check_table_availability",
+      "description": "Execute check_table_availability on TableBespoke Fine Dining & Chef's Tables",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "reserve_dining_table",
+      "name": "reserve_dining_table",
+      "description": "Execute reserve_dining_table on TableBespoke Fine Dining & Chef's Tables",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "query_inventory",
+      "name": "query_inventory",
+      "description": "Execute query_inventory on TableBespoke Fine Dining & Chef's Tables",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "commit_reservation",
+      "name": "commit_reservation",
+      "description": "Execute commit_reservation on TableBespoke Fine Dining & Chef's Tables",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "check_table_availability",
+      "reserve_dining_table",
+      "query_inventory",
+      "commit_reservation"
+    ],
+    "networks": [
+      "tablebespoke_concierge"
+    ],
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "http://localhost/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

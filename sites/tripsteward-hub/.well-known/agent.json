@@ -1,0 +1,94 @@
+{
+  "$schema": "https://agent2agent.org/schemas/agent-card-v1.json",
+  "name": "HarborView Hotel & TripSteward Concierge",
+  "description": "",
+  "url": "https://pnrs.is-a.dev/tripsteward/",
+  "version": "0.3.0",
+  "provider": {
+    "name": "HarborView Hotel & TripSteward Concierge",
+    "url": "https://pnrs.is-a.dev/tripsteward/"
+  },
+  "identity": {
+    "brand": "HarborView Hotel & TripSteward Concierge",
+    "frontMan": "travel_concierge",
+    "category": "open-agentic-web"
+  },
+  "skills": [
+    {
+      "id": "get_trip_preferences",
+      "name": "get_trip_preferences",
+      "description": "Execute get_trip_preferences on HarborView Hotel & TripSteward Concierge",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "reserve_hotel_room",
+      "name": "reserve_hotel_room",
+      "description": "Execute reserve_hotel_room on HarborView Hotel & TripSteward Concierge",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "compile_master_itinerary",
+      "name": "compile_master_itinerary",
+      "description": "Execute compile_master_itinerary on HarborView Hotel & TripSteward Concierge",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "discover_agent_nodes",
+      "name": "discover_agent_nodes",
+      "description": "Execute discover_agent_nodes on HarborView Hotel & TripSteward Concierge",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    },
+    {
+      "id": "register_agent_node",
+      "name": "register_agent_node",
+      "description": "Execute register_agent_node on HarborView Hotel & TripSteward Concierge",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "effect": "read"
+    }
+  ],
+  "capabilities": {
+    "actions": true,
+    "pushNotifications": false,
+    "tools": [
+      "get_trip_preferences",
+      "reserve_hotel_room",
+      "compile_master_itinerary",
+      "discover_agent_nodes",
+      "register_agent_node"
+    ],
+    "networks": [
+      "tripsteward_concierge"
+    ],
+    "actionBridgeUrl": "http://localhost/bridge/action-bridge.html"
+  },
+  "protocols": [
+    {
+      "name": "nsdeploy-actions-v1",
+      "version": "1.0.0",
+      "endpoint": "http://localhost/bridge/action-bridge.html"
+    }
+  ],
+  "authentication": {
+    "type": "byok",
+    "description": "Bring Your Own Key client-side inference"
+  }
+}

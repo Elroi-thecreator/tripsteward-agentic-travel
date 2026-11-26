@@ -1,0 +1,28 @@
+{
+  "specification": "https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json",
+  "name": "TableBespoke Fine Dining & Chef's Tables",
+  "version": "1.0.0",
+  "description": "TableBespoke: Direct fine dining and culinary experience bookings on the Open Agentic Web",
+  "networks": [
+    {
+      "name": "tablebespoke_concierge",
+      "hocon": "./tablebespoke_concierge.network.json",
+      "front_man": "dining_sommelier"
+    }
+  ],
+  "llm_router": {
+    "base_url": "https://api.otari.ai/api/v1",
+    "default_model": "alibaba/qwen3.8-flash"
+  },
+  "actions": {
+    "agentTools": [
+      "check_table_availability",
+      "reserve_dining_table",
+      "query_inventory",
+      "commit_reservation"
+    ]
+  },
+  "peer_policy": {
+    "mode": "open"
+  }
+}
