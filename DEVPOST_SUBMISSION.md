@@ -51,7 +51,7 @@ TripSteward federates three independent agentic web properties into a decentrali
 4. **Master Digital Travel Pass Synthesis:**
    - Compiles all confirmed provider reservations into a single, cohesive master pass (`website_compile_master_itinerary`) with verified itemized savings (**$161.00 saved** on direct provider rates: $604.00 direct vs $765.00 OTA aggregator markup).
 5. **Universal Developer SDK & Conformance CLI (`open-agentic-web` on npm):**
-   - Beyond the 3 live sites, we extracted the foundational plumbing into a zero-dependency, open-source npm package (`open-agentic-web@1.1.0`) so any developer can build, test, and federate conforming agentic websites in minutes.
+   - Beyond the 3 live sites, we extracted the foundational plumbing into a zero-dependency, open-source npm package (`open-agentic-web@1.1.1`) so any developer can build, test, and federate conforming agentic websites in minutes.
 6. **Dual-Mode User Experience (Real BYOK LLM + Honest Demo Preview):**
    - **Real BYOK Live Inference**: Visitors can enter an Otari (`alibaba/qwen3.8-flash`), OpenRouter, or OpenAI key in chat settings to execute multi-turn, multi-agent autonomous tool calling in real-time.
    - **Honest Offline Demo Flow (`▶ Preview Demo Flow (No Key)`)**: Clear, transparent simulated walk-through allowing judges and reviewers without active API keys to preview the end-to-end multi-agent orchestration without breaking the illusion of real LLM inference.

@@ -26,7 +26,7 @@ All projects, nodes, and federated agent services in this repository and the bro
    - `federation <hub> [peers...] [--json]`: Verifies mesh integrity, peer links, and cross-site compatibility, printing granular link-by-link pass/fail diagnostics.
    - `dev [dir] [--port 3000]`: Boots a zero-dependency local static server with CORS and serves an interactive browser test playground at `/playground` to test site actions and bridge handshakes before deployment.
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) from conforming nodes.
-   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.0`).
+   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.1`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
 3. **Continuous Conformance & Automated Publishing**:
    - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite.

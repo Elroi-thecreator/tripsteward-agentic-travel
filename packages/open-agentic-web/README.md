@@ -1,6 +1,6 @@
 # 🌐 Open Agentic Web SDK (`open-agentic-web`)
 
-[![npm version](https://img.shields.io/badge/npm-v1.1.0-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
+[![npm version](https://img.shields.io/badge/npm-v1.1.1-blue.svg)](https://www.npmjs.com/package/open-agentic-web)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Specification](https://img.shields.io/badge/Spec-Open%20Agentic%20Web%20MVP%200.3-orange.svg)](https://cognizant-ai-labs.github.io/agentic-web/specs/mvp-v0.3.json)
 
@@ -197,8 +197,8 @@ Features **fail-closed security** (defaults to rejecting cross-origin calls unle
     <script type="importmap">
     {
       "imports": {
-        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.0",
-        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.0/"
+        "open-agentic-web": "https://esm.sh/open-agentic-web@1.1.1",
+        "open-agentic-web/": "https://esm.sh/open-agentic-web@1.1.1/"
       }
     }
     </script>
