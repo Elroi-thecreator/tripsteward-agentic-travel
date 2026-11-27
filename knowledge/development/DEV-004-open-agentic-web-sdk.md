@@ -6,7 +6,7 @@ type: "development"
 title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
 domain: "development"
 status: "APPROVED"
-version: "1.7.0"
+version: "1.8.0"
 ---
 
 ## Rule
@@ -31,12 +31,18 @@ All projects, nodes, and federated agent services in this repository and the bro
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) with fully hydrated parameter schemas dynamically imported from local `site-actions.js`.
    - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.2.0`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
-3. **AI Agent Plugin Integration (`plugins/open-agentic-web-plugin`)**:
-   - Standard Antigravity, Claude Code, and Cursor plugin distribution containing `plugin.json`, `mcp_config.json`, and specialized agent skills:
-     - `open-agentic-web-devtools`: Conformance validation, graph auditing, and node scaffolding.
-     - `open-agentic-web-actions`: Grounded site actions design, irreversible action human confirmation modals, and ECDSA P-256 cryptographic receipt verification.
+3. **Antigravity (AGY) & Multi-Agent Plugin Integration (`plugins/open-agentic-web-plugin`)**:
+   - Native Antigravity (`agy`) Customization System plugin, automatically discoverable via `.agents/plugins/open-agentic-web-plugin` and `.agents/plugins.json` (Workspace Discovery) or `~/.gemini/config/plugins/` (Global Discovery).
+   - Contains:
+     - `plugin.json`: Manifest declaring name, display name, suggested prompts, and repository metadata.
+     - `rules/AGENTS.md`: Operating rules enforcing zero-leakage privacy, human approval for irreversible actions, and WebCrypto ECDSA receipt verification.
+     - `mcp_config.json`: MCP server configuration providing stdio tools and resources.
+     - Specialized agent skills:
+       - `open-agentic-web-devtools`: Conformance validation, graph auditing, and node scaffolding.
+       - `open-agentic-web-actions`: Grounded site actions design, irreversible action human confirmation modals, and ECDSA P-256 cryptographic receipt verification.
+       - `open-agentic-web-concierge`: Autonomous cross-site travel concierge orchestration across boutique hotels, autonomous rides, and digital activity passes.
 4. **Continuous Conformance, End-to-End Testing & Automated Publishing**:
-   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite (143 checks total).
+   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite (147 checks total).
    - `npm run test:e2e` & `npm run test:e2e:live` run the automated 38-check Playwright browser suite validating all buttons, modals, dynamic mount operations, and cryptographic signature verifications with 0 console errors.
    - All published nodes must pass `oaw validate` with 0 failures before deployment.
    - Automated GitHub Actions workflow (`.github/workflows/publish-npm.yml`) publishes the package to npm with cryptographic build provenance (`--provenance`) upon git release, tag push (`v*`), or manual workflow dispatch.

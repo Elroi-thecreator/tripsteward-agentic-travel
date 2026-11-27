@@ -385,6 +385,18 @@ async function testActions() {
   const actionsSkillPath = join(rootDir, "plugins", "open-agentic-web-plugin", "skills", "open-agentic-web-actions", "SKILL.md");
   assert(existsSync(actionsSkillPath), "plugin contains open-agentic-web-actions SKILL.md");
 
+  const conciergeSkillPath = join(rootDir, "plugins", "open-agentic-web-plugin", "skills", "open-agentic-web-concierge", "SKILL.md");
+  assert(existsSync(conciergeSkillPath), "plugin contains open-agentic-web-concierge SKILL.md");
+
+  const agyRulesPath = join(rootDir, "plugins", "open-agentic-web-plugin", "rules", "AGENTS.md");
+  assert(existsSync(agyRulesPath), "plugin contains AGY rules/AGENTS.md");
+
+  const agentsPluginConfigPath = join(rootDir, ".agents", "plugins.json");
+  assert(existsSync(agentsPluginConfigPath), "workspace declares .agents/plugins.json");
+
+  const workspacePluginPath = join(rootDir, ".agents", "plugins", "open-agentic-web-plugin");
+  assert(existsSync(workspacePluginPath), "workspace discovers .agents/plugins/open-agentic-web-plugin");
+
   console.log("\n========================================================");
   console.log(`Test Summary: ${passed} passed, ${failed} failed.`);
   console.log("========================================================\n");

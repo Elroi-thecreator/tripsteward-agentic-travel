@@ -95,7 +95,7 @@ devpost-Cognizant/
 ```bash
 npm test
 ```
-*Validates JSON schemas, Neuro SAN graphs, agent manifests, peer link resolution, site actions, MCP server, and agent plugins (143 checks).*
+*Validates JSON schemas, Neuro SAN graphs, agent manifests, peer link resolution, site actions, MCP server, and agent plugins (147 checks).*
 
 ### Start Model Context Protocol (MCP) Server for Agents
 ```bash
