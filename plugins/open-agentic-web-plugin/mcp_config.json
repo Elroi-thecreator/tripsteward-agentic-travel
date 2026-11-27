@@ -3,15 +3,8 @@
     "open-agentic-web": {
       "command": "node",
       "args": [
-        "${workspaceRoot}/packages/open-agentic-web/bin/mcp-server.mjs"
-      ],
-      "tools": {
-        "oaw_validate_node": { "eager": true },
-        "oaw_audit_federation": { "eager": true },
-        "oaw_list_actions": { "eager": true },
-        "oaw_generate_a2a": { "eager": false },
-        "oaw_inspect_node": { "eager": false }
-      }
+        "${workspaceRoot}/plugins/open-agentic-web-plugin/bin/mcp-launcher.mjs"
+      ]
     }
   }
 }

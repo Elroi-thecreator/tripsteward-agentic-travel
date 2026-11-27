@@ -12,7 +12,8 @@
     "lint:nodes": "node packages/open-agentic-web/bin/cli.mjs validate sites/tripsteward-hub sites/cityglide-node sites/metropass-node",
     "serve:hub": "node scripts/serve_site.mjs sites/tripsteward-hub --port 8080",
     "serve:rides": "node scripts/serve_site.mjs sites/cityglide-node --port 8081",
-    "serve:experiences": "node scripts/serve_site.mjs sites/metropass-node --port 8082"
+    "serve:experiences": "node scripts/serve_site.mjs sites/metropass-node --port 8082",
+    "package:agy-plugin": "node scripts/package-agy-plugin.mjs"
   },
   "keywords": [
     "open-agentic-web",
