@@ -4,7 +4,7 @@ system_name: "tripsteward-agentic-travel"
 repository_root: "."
 description: "TripSteward: Autonomous Federated Travel, Hotel & City Mobility Concierge — Open Agentic Web Cluster"
 knowledge_units_count: 6
-last_updated: "2026-11-26"
+last_updated: "2026-11-27"
 
 knowledge_units:
   product:

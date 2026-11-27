@@ -1,0 +1,22 @@
+{
+  "name": "open-agentic-web-plugin",
+  "displayName": "Open Agentic Web DevTools & Concierge Plugin",
+  "version": "1.2.0",
+  "description": "Autonomous AI Agent plugin for authoring, auditing, validating, and executing actions across Open Agentic Web nodes adhering to Cognizant / Mozilla / MIT NANDA MVP Profile 0.3",
+  "author": {
+    "name": "TripSteward & Open Agentic Web Community"
+  },
+  "repository": "https://github.com/Elroi-thecreator/tripsteward-agentic-travel",
+  "license": "Apache-2.0",
+  "keywords": [
+    "open-agentic-web",
+    "agentic-web",
+    "mcp",
+    "neuro-san",
+    "byok",
+    "travel-concierge",
+    "validation",
+    "action-bridge",
+    "a2a"
+  ]
+}

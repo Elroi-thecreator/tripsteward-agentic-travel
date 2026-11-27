@@ -8,3 +8,4 @@ export * from "./actions.js";
 export * from "./bridge.js";
 export * from "./validator.js";
 export * from "./federation.js";
+export * from "./mcp.js";

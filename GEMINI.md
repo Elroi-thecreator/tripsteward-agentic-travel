@@ -39,9 +39,9 @@ This repository implements **TripSteward: Autonomous Federated Travel, Hotel & C
 
 ## 🛠️ Verification & Run Commands
 ```bash
-npm test               # Run 69-point Open Agentic Web conformance test
-npm start              # Boot all 3 nodes (8080, 8081, 8082) concurrently
+npm test               # Run 143-point Open Agentic Web conformance test suite
 npm run serve:hub      # Boot TripSteward Hub (8080)
 npm run serve:rides    # Boot CityGlide Node (8081)
 npm run serve:experiences # Boot MetroPass Node (8082)
+npx oaw mcp            # Launch Model Context Protocol (MCP) server over stdio
 ```

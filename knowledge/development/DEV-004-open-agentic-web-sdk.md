@@ -6,31 +6,37 @@ type: "development"
 title: "Open Agentic Web Developer SDK & Conformance CLI Standards"
 domain: "development"
 status: "APPROVED"
-version: "1.6.0"
+version: "1.7.0"
 ---
 
 ## Rule
-All projects, nodes, and federated agent services in this repository and the broader ecosystem should use the extracted, reusable `open-agentic-web` npm package for conformance verification, site action definition, cross-origin bridging, and dynamic federation:
+All projects, nodes, and federated agent services in this repository and the broader ecosystem should use the extracted, reusable `open-agentic-web` npm package for conformance verification, site action definition, cross-origin bridging, dynamic federation, and MCP/Agent plugin integration:
 
 1. **Package Scope & Architecture**:
-   - Location: `packages/open-agentic-web` (v1.1.6)
-   - Zero external runtime dependencies: Built using standard Node.js built-ins (`node:fs`, `node:path`, `node:http`) and browser Web APIs (`MessageChannel`, `postMessage`, `fetch`, `AbortSignal`, `crypto.subtle`).
+   - Location: `packages/open-agentic-web` (v1.2.0)
+   - Zero external runtime dependencies: Built using standard Node.js built-ins (`node:fs`, `node:path`, `node:http`, `node:readline`) and browser Web APIs (`MessageChannel`, `postMessage`, `fetch`, `AbortSignal`, `crypto.subtle`).
    - TypeScript definitions: Fully typed with `src/index.d.ts` exported via `"types"`.
    - Module Exports:
      - `open-agentic-web/validator`: Conformance linter for `agent-manifest.json`, `*.network.json`, `links.json`, and `site-actions.js` with deep action registration verification, live remote URL auditing, and true cross-site mesh federation auditing with `--json` reporting support.
      - `open-agentic-web/actions`: Grounded site actions creator (`defineAction`), pure-JS JSON schema validator (`validateSchema`) with `pattern`, bounded ReDoS safety limits, `format`, `default` injection, `oneOf`, and `anyOf`, action registry with parameter catalogs, preserving `availability: "bridge"` so remote orchestrators can execute tools without defaulting to `local-only`, chronological audit logging (`getAuditLog()`), dedicated `undo()` handlers, multi-target tool adapters (`toOpenAITools()`, `toMCPTools()`, `registerWebMCP()`), standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Card generator (`toA2AAgentCard`), fail-closed confirmation dialog modal (`createConsentDialog`), deterministic JSON canonicalization (`canonicalizeJson`), and native WebCrypto ECDSA P-256 receipt signing (`signActionReceipt`) and cryptographic verification (`verifyActionReceipt`).
      - `open-agentic-web/bridge`: Sandboxed cross-origin action execution bridge (`setupActionBridge`, `createActionBridgeClient`) adhering to the `nsdeploy-actions-v1` protocol. Implements fail-closed defaults (`allowedOrigins: []`), policy queueing to prevent asynchronous manifest fetch race conditions, pre-execution argument validation, dual-mode connection support (resolving on `{ type: "connected" }` or immediate `{ id: 0, type: "catalog" }` probe), automatic top-level confirmation popup window support for irreversible actions (`mode: "auto" | "popup"`), and `AbortSignal` cancellation support on remote calls.
      - `open-agentic-web/federation`: Dynamic multi-agent swarm manager (`AgentSwarm`) supporting on-the-fly remote node mounting with interactive user consent (`onConsent`), tool collision safety across peers (`${nodeId}__${toolName}`), node retrieval by ID (`getNode(id)`), auto-routing to peer bridges, live catalog hydration, SSE token streaming (`stream: true`, `onToken`), and a provider-agnostic BYOK LLM tool-calling loop (`runTurn`) compatible with OpenAI, Anthropic, Gemini, Ollama, and custom adapters with `AbortSignal` support.
+     - `open-agentic-web/mcp`: Zero-dependency JSON-RPC 2.0 Model Context Protocol server exposing site actions, built-in auditing tools (`oaw_validate_node`, `oaw_audit_federation`, `oaw_list_actions`, `oaw_generate_a2a`, `oaw_inspect_node`), and resources (`oaw://audit-log`, `oaw://sites/:id/manifest`) over stdio for Claude Desktop, Cursor, Antigravity, and Gemini CLI.
 2. **CLI Standards (`open-agentic-web` / `oaw`)**:
    - `validate [paths...] [--json]`: Validates directories or live remote URLs (`http://`, `https://`) against the Cognizant / Mozilla / MIT NANDA MVP Profile 0.3 specification, verifying CORS headers and `X-Frame-Options` on deployed nodes.
    - `federation <hub> [peers...] [--json]`: Verifies mesh integrity, peer links, and cross-site compatibility, printing granular link-by-link pass/fail diagnostics.
    - `test-bridge [dir-or-url]`: Conformance probe testing live action bridge endpoints, message receiver contracts, declared tool schemas, and ECDSA JWKS key publication.
    - `dev [dir] [--port 3000]`: Boots a zero-dependency local static server with path-traversal containment, CORS headers, and an interactive browser test playground at `/playground` to test site actions and bridge handshakes before deployment.
+   - `mcp [paths...]`: Launches standard Model Context Protocol (MCP) server over stdio for AI agent IDE integration.
    - `a2a [dir] [--out path]`: Generates standard Linux Foundation / Google Agent-to-Agent (A2A) Agent Cards (`.well-known/agent.json`) with fully hydrated parameter schemas dynamically imported from local `site-actions.js`.
-   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.1.6`).
+   - `init [dir] [--name <name>]`: Scaffolds a 100% conforming agentic node with browser import maps dynamically pinned to the package version (`open-agentic-web@1.2.0`).
    - `inspect [path]`: Inspects declared tools, routers, and networks.
-3. **Continuous Conformance, End-to-End Testing & Automated Publishing**:
-   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite (127 checks total).
+3. **AI Agent Plugin Integration (`plugins/open-agentic-web-plugin`)**:
+   - Standard Antigravity, Claude Code, and Cursor plugin distribution containing `plugin.json`, `mcp_config.json`, and specialized agent skills:
+     - `open-agentic-web-devtools`: Conformance validation, graph auditing, and node scaffolding.
+     - `open-agentic-web-actions`: Grounded site actions design, irreversible action human confirmation modals, and ECDSA P-256 cryptographic receipt verification.
+4. **Continuous Conformance, End-to-End Testing & Automated Publishing**:
+   - `npm test` runs both the root integration tests and the `open-agentic-web` package test suite (143 checks total).
    - `npm run test:e2e` & `npm run test:e2e:live` run the automated 38-check Playwright browser suite validating all buttons, modals, dynamic mount operations, and cryptographic signature verifications with 0 console errors.
    - All published nodes must pass `oaw validate` with 0 failures before deployment.
    - Automated GitHub Actions workflow (`.github/workflows/publish-npm.yml`) publishes the package to npm with cryptographic build provenance (`--provenance`) upon git release, tag push (`v*`), or manual workflow dispatch.

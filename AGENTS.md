@@ -95,7 +95,12 @@ devpost-Cognizant/
 ```bash
 npm test
 ```
-*Validates JSON schemas, Neuro SAN graphs, agent manifests, peer link resolution, and site actions across all 3 nodes (64 checks).*
+*Validates JSON schemas, Neuro SAN graphs, agent manifests, peer link resolution, site actions, MCP server, and agent plugins (143 checks).*
+
+### Start Model Context Protocol (MCP) Server for Agents
+```bash
+npx open-agentic-web mcp sites/tripsteward-hub sites/cityglide-node sites/metropass-node
+```
 
 ### Start Local Federated Network (Boots ports 8080, 8081, 8082)
 ```bash

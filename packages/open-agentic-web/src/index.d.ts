@@ -317,3 +317,25 @@ export function verifyActionReceipt(receiptObj: SignedReceipt, publicKeyJwk: Jso
 export function validateManifest(manifest: any): ValidationResult;
 export function validateNetwork(network: any): ValidationResult;
 export function validateFederation(hubDir: string, peerDirs: string[]): Promise<FederationReport>;
+
+
+export interface MCPServerOptions {
+  siteDirs?: string | string[];
+  registry?: ActionRegistry;
+  name?: string;
+  version?: string;
+}
+
+export interface MCPServerInstance {
+  registry: ActionRegistry;
+  loadSite(siteDir: string): Promise<void>;
+  getTools(): any[];
+  callTool(name: string, args?: any): Promise<{ content: Array<{ type: string; text: string }>; isError: boolean }>;
+  getResources(): any[];
+  readResource(uri: string): { contents: Array<{ uri: string; mimeType: string; text: string }> };
+  handleMessage(msg: any): Promise<any>;
+  startStdio(): any;
+  ready(): Promise<void>;
+}
+
+export function createMCPServer(options?: MCPServerOptions): MCPServerInstance;

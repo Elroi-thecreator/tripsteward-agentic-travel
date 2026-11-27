@@ -10,12 +10,13 @@ import { createServer } from "node:http";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createActionRegistry, toA2AAgentCard } from "../src/actions.js";
+import { createMCPServer } from "../src/mcp.js";
 import { validateFederation, validateManifest, validateNetwork, validateNode } from "../src/validator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let VERSION = "1.1.6";
+let VERSION = "1.2.0";
 try {
   const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
   if (pkg.version) VERSION = pkg.version;
@@ -49,6 +50,7 @@ ${colors.bold}COMMANDS:${colors.reset}
   ${colors.cyan}dev${colors.reset} [dir] [--port 3000]   Start local development server with CORS & interactive playground.
   ${colors.cyan}init${colors.reset} [dir]                Scaffold a new, 100% conforming Open Agentic Web node.
   ${colors.cyan}inspect${colors.reset} [path]             Inspect and print the declarative agent graph and tool catalog.
+  ${colors.cyan}mcp${colors.reset} [paths...]            Start standard Model Context Protocol (MCP) server over stdio.
   ${colors.cyan}test-bridge${colors.reset} [dir-or-url]    Test Action Bridge endpoint and protocol handshake contract.
   ${colors.cyan}a2a${colors.reset} [dir] [--out path]    Generate standard Agent-to-Agent (A2A) agent.json card.
   ${colors.cyan}help${colors.reset}                    Display this help message.
@@ -802,6 +804,20 @@ async function runTestBridge() {
   console.log(`\n${colors.bold}${colors.green}✅ Action Bridge & Protocol Handshake Verification Complete!${colors.reset}\n`);
 }
 
+async function runMcp() {
+  const dirs = args.slice(1).filter(a => !a.startsWith("-"));
+  const defaultDirs = [
+    "sites/tripsteward-hub",
+    "sites/cityglide-node",
+    "sites/metropass-node",
+    "."
+  ];
+  const siteDirs = dirs.length > 0 ? dirs : defaultDirs.filter(d => existsSync(resolve(d)));
+  const server = createMCPServer({ siteDirs });
+  await server.ready();
+  server.startStdio();
+}
+
 switch (command) {
   case "validate":
   case "test":
@@ -831,6 +847,10 @@ switch (command) {
     break;
   case "inspect":
     runInspect();
+    break;
+  case "mcp":
+  case "server":
+    runMcp();
     break;
   case "version":
   case "-v":

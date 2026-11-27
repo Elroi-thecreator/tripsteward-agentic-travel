@@ -353,6 +353,38 @@ async function testActions() {
   const exportedLinks = swarm.exportLinks("tripsteward_concierge");
   assert(exportedLinks.networks.tripsteward_concierge !== undefined, "open-agentic-web exports dynamic links mapping format");
 
+  // 6. Testing Open Agentic Web MCP Server & Agent Plugins
+  console.log("\n6. Testing Open Agentic Web MCP Server & Agent Plugins...");
+  const { createMCPServer } = await import("../packages/open-agentic-web/src/mcp.js");
+  assert(typeof createMCPServer === "function", "open-agentic-web exports createMCPServer");
+
+  const mcpServer = createMCPServer({
+    siteDirs: [
+      join(rootDir, "sites", "tripsteward-hub"),
+      join(rootDir, "sites", "cityglide-node"),
+      join(rootDir, "sites", "metropass-node")
+    ]
+  });
+  await mcpServer.ready();
+  const mcpTools = mcpServer.getTools();
+  assert(mcpTools.length >= 8, `MCP Server exposes ${mcpTools.length} total tools across all 3 nodes`);
+  assert(mcpTools.some(t => t.name === "oaw_validate_node"), "MCP Server exposes oaw_validate_node tool");
+  assert(mcpTools.some(t => t.name === "get_trip_preferences"), "MCP Server exposes TripSteward get_trip_preferences action");
+  assert(mcpTools.some(t => t.name === "quote_transfer_service"), "MCP Server exposes CityGlide quote_transfer_service action");
+  assert(mcpTools.some(t => t.name === "search_experiences"), "MCP Server exposes MetroPass search_experiences action");
+
+  // Verify plugin manifests and skills
+  const pluginManifestPath = join(rootDir, "plugins", "open-agentic-web-plugin", "plugin.json");
+  assert(existsSync(pluginManifestPath), "open-agentic-web-plugin has plugin.json");
+  const pluginManifest = JSON.parse(readFileSync(pluginManifestPath, "utf-8"));
+  assert(pluginManifest.name === "open-agentic-web-plugin", "plugin.json declares open-agentic-web-plugin");
+
+  const devtoolsSkillPath = join(rootDir, "plugins", "open-agentic-web-plugin", "skills", "open-agentic-web-devtools", "SKILL.md");
+  assert(existsSync(devtoolsSkillPath), "plugin contains open-agentic-web-devtools SKILL.md");
+
+  const actionsSkillPath = join(rootDir, "plugins", "open-agentic-web-plugin", "skills", "open-agentic-web-actions", "SKILL.md");
+  assert(existsSync(actionsSkillPath), "plugin contains open-agentic-web-actions SKILL.md");
+
   console.log("\n========================================================");
   console.log(`Test Summary: ${passed} passed, ${failed} failed.`);
   console.log("========================================================\n");

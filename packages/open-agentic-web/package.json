@@ -1,23 +1,26 @@
 {
   "name": "open-agentic-web",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "Standard developer toolkit, conformance linter & in-browser runtime for the Open Agentic Web (Cognizant / Mozilla / MIT NANDA MVP Profile 0.3)",
   "type": "module",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "bin": {
     "open-agentic-web": "./bin/cli.mjs",
-    "oaw": "./bin/cli.mjs"
+    "oaw": "./bin/cli.mjs",
+    "open-agentic-web-mcp": "./bin/mcp-server.mjs",
+    "oaw-mcp": "./bin/mcp-server.mjs"
   },
   "exports": {
     ".": "./src/index.js",
     "./actions": "./src/actions.js",
     "./validator": "./src/validator.js",
     "./bridge": "./src/bridge.js",
-    "./federation": "./src/federation.js"
+    "./federation": "./src/federation.js",
+    "./mcp": "./src/mcp.js"
   },
   "scripts": {
-    "test": "node test/validator.test.mjs && node test/actions.test.mjs && node test/federation.test.mjs"
+    "test": "node test/validator.test.mjs && node test/actions.test.mjs && node test/federation.test.mjs && node test/mcp.test.mjs"
   },
   "keywords": [
     "open-agentic-web",
